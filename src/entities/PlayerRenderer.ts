@@ -31,10 +31,12 @@ export interface Joints {
   footR: Point;
 }
 
-/** Soften extreme squash when a joint pair is shorter than the painted bone. */
-const MIN_BONE_SCALE = 0.045;
-const BODY_SCALE_BOOST = 1.12;
-const LIMB_SCALE_BOOST = 1.05;
+/** Body paint scale from the torso bone; limbs keep body thickness but stretch to joint length. */
+const BODY_SCALE = 0.128;
+const LIMB_THICKNESS = BODY_SCALE * 0.7;
+const TIP_SCALE = BODY_SCALE * 0.78;
+/** Floor for limb length so guard-pose bones still read as connected meat. */
+const MIN_LIMB_LENGTH = BODY_SCALE * 0.42;
 
 export function buildJoints(view: PlayerViewState): Joints {
   if (view.pose === "crouch" || view.pose === "sweep") {
@@ -96,67 +98,72 @@ export class PlayerRenderer {
 
   private layout(joints: Joints): void {
     const hips = {
-      left: { x: joints.pelvis.x - 8, y: joints.pelvis.y + 2 },
-      right: { x: joints.pelvis.x + 8, y: joints.pelvis.y + 2 },
+      left: { x: joints.pelvis.x - 7, y: joints.pelvis.y + 4 },
+      right: { x: joints.pelvis.x + 7, y: joints.pelvis.y + 4 },
     };
-    const neck = {
-      x: joints.head.x * 0.35 + joints.chest.x * 0.65,
-      y: joints.head.y + joints.head.r * 0.7,
-    };
-    const bodyScale = this.segmentScale(PLAYER_PARTS.torso, joints.pelvis, joints.chest) * BODY_SCALE_BOOST;
 
-    this.place(PLAYER_PARTS.thighR, hips.right, joints.kneeR, LIMB_SCALE_BOOST);
-    this.place(PLAYER_PARTS.shinR, joints.kneeR, joints.footR, LIMB_SCALE_BOOST);
-    this.placeTip(PLAYER_PARTS.footR, joints.footR, joints.kneeR, joints.footR, bodyScale * 0.92);
+    // Legs first (behind).
+    this.stretch(PLAYER_PARTS.thighR, hips.right, joints.kneeR);
+    this.stretch(PLAYER_PARTS.shinR, joints.kneeR, joints.footR);
+    this.tip(PLAYER_PARTS.footR, joints.footR, joints.kneeR, joints.footR);
 
-    this.place(PLAYER_PARTS.thighL, hips.left, joints.kneeL, LIMB_SCALE_BOOST);
-    this.place(PLAYER_PARTS.shinL, joints.kneeL, joints.footL, LIMB_SCALE_BOOST);
-    this.placeTip(PLAYER_PARTS.footL, joints.footL, joints.kneeL, joints.footL, bodyScale * 0.92);
+    this.stretch(PLAYER_PARTS.thighL, hips.left, joints.kneeL);
+    this.stretch(PLAYER_PARTS.shinL, joints.kneeL, joints.footL);
+    this.tip(PLAYER_PARTS.footL, joints.footL, joints.kneeL, joints.footL);
 
-    this.placeFixed(PLAYER_PARTS.pelvis, joints.pelvis, 0, bodyScale * 0.9);
-    this.place(PLAYER_PARTS.torso, joints.pelvis, joints.chest, BODY_SCALE_BOOST);
-
-    this.place(PLAYER_PARTS.upperArmR, joints.shoulderR, joints.elbowR, LIMB_SCALE_BOOST);
-    this.place(PLAYER_PARTS.forearmR, joints.elbowR, joints.fistR, LIMB_SCALE_BOOST);
-    this.placeTip(PLAYER_PARTS.fistR, joints.fistR, joints.elbowR, joints.fistR, bodyScale * 0.85);
-
-    this.place(PLAYER_PARTS.upperArmL, joints.shoulderL, joints.elbowL, LIMB_SCALE_BOOST);
-    this.place(PLAYER_PARTS.forearmL, joints.elbowL, joints.fistL, LIMB_SCALE_BOOST);
-    this.placeTip(PLAYER_PARTS.fistL, joints.fistL, joints.elbowL, joints.fistL, bodyScale * 0.85);
-
-    this.placeFixed(
-      PLAYER_PARTS.head,
-      neck,
-      boneAngle(neck, { x: joints.head.x, y: joints.head.y - joints.head.r }, "up"),
-      bodyScale,
+    // Core — shared scale; seat head slightly into the collar so the neck seam overlaps.
+    this.place(PLAYER_PARTS.pelvis, joints.pelvis, 0, BODY_SCALE * 0.82);
+    this.place(
+      PLAYER_PARTS.torso,
+      joints.pelvis,
+      boneAngle(joints.pelvis, joints.chest, "up"),
+      BODY_SCALE,
     );
+
+    const collar = pointAlong(
+      joints.pelvis,
+      joints.chest,
+      artBoneLength(PLAYER_PARTS.torso) * BODY_SCALE * 0.9,
+    );
+    this.place(
+      PLAYER_PARTS.head,
+      collar,
+      boneAngle(collar, { x: collar.x + (joints.head.x - joints.chest.x) * 0.35, y: collar.y - 18 }, "up"),
+      BODY_SCALE,
+    );
+
+    // Arms last (in front). Thickness stays readable; length follows the strike.
+    this.stretch(PLAYER_PARTS.upperArmR, joints.shoulderR, joints.elbowR);
+    this.stretch(PLAYER_PARTS.forearmR, joints.elbowR, joints.fistR);
+    this.tip(PLAYER_PARTS.fistR, joints.fistR, joints.elbowR, joints.fistR);
+
+    this.stretch(PLAYER_PARTS.upperArmL, joints.shoulderL, joints.elbowL);
+    this.stretch(PLAYER_PARTS.forearmL, joints.elbowL, joints.fistL);
+    this.tip(PLAYER_PARTS.fistL, joints.fistL, joints.elbowL, joints.fistL);
   }
 
-  private place(def: PlayerPartDef, from: Point, to: Point, boost: number): void {
+  private stretch(def: PlayerPartDef, from: Point, to: Point): void {
+    const span = Math.max(distance(from, to), 6);
+    const lengthScale = Math.max(MIN_LIMB_LENGTH, span / artBoneLength(def));
     const sprite = this.sprites[def.id];
-    const scale = this.segmentScale(def, from, to) * boost;
     sprite.setPosition(from.x, from.y);
     sprite.setRotation(boneAngle(from, to, def.axis));
-    sprite.setScale(scale);
+    // Local Y is the bone axis in art; keep fighters thick even on short guard bones.
+    sprite.setScale(LIMB_THICKNESS, lengthScale);
   }
 
-  private placeTip(def: PlayerPartDef, at: Point, from: Point, to: Point, scale: number): void {
+  private tip(def: PlayerPartDef, at: Point, from: Point, to: Point): void {
     const sprite = this.sprites[def.id];
     sprite.setPosition(at.x, at.y);
     sprite.setRotation(boneAngle(from, to, def.axis));
-    sprite.setScale(Math.max(MIN_BONE_SCALE, scale));
+    sprite.setScale(TIP_SCALE);
   }
 
-  private placeFixed(def: PlayerPartDef, at: Point, rotation: number, scale: number): void {
+  private place(def: PlayerPartDef, at: Point, rotation: number, scale: number): void {
     const sprite = this.sprites[def.id];
     sprite.setPosition(at.x, at.y);
     sprite.setRotation(rotation);
-    sprite.setScale(Math.max(MIN_BONE_SCALE, scale));
-  }
-
-  private segmentScale(def: PlayerPartDef, from: Point, to: Point): number {
-    const len = Math.max(distance(from, to), 8);
-    return Math.max(MIN_BONE_SCALE, len / artBoneLength(def));
+    sprite.setScale(scale);
   }
 
   private drawFx(joints: Joints, view: PlayerViewState): void {
@@ -201,14 +208,14 @@ function guardPose(breath: number): Joints {
   const lift = breath * 1.5;
   return {
     head: { x: 0, y: -50 + lift, r: 13 },
-    shoulderL: { x: -14, y: -28 + lift },
-    shoulderR: { x: 12, y: -26 + lift },
-    elbowL: { x: -18, y: -8 },
-    elbowR: { x: 18, y: -4 },
-    fistL: { x: -8, y: -16 },
-    fistR: { x: 10, y: -12 },
-    chest: { x: 0, y: -16 + lift * 0.5 },
-    pelvis: { x: 0, y: 16 },
+    shoulderL: { x: -12, y: -30 + lift },
+    shoulderR: { x: 12, y: -28 + lift },
+    elbowL: { x: -16, y: -10 },
+    elbowR: { x: 16, y: -6 },
+    fistL: { x: -6, y: -18 },
+    fistR: { x: 8, y: -14 },
+    chest: { x: 0, y: -18 + lift * 0.5 },
+    pelvis: { x: 0, y: 18 },
     kneeL: { x: -8, y: 40 },
     kneeR: { x: 8, y: 40 },
     footL: { x: -9, y: 58 },
@@ -336,13 +343,13 @@ function applyHook(joints: Joints, amount: number): void {
 function applyKick(joints: Joints, amount: number): void {
   const chamberKnee = { x: 18, y: 2 };
   const chamberFoot = { x: 14, y: -10 };
-  const extendKnee = { x: 30, y: -4 };
-  const extendFoot = { x: 58, y: -8 };
+  const kickKnee = { x: 30, y: -4 };
+  const kickFoot = { x: 58, y: -8 };
   const chamber = amount < 0.2 ? amount / 0.2 : 1;
   const strike = amount < 0.2 ? 0 : (amount - 0.2) / 0.8;
   const weight = Math.max(chamber, strike);
-  joints.kneeR = mix(joints.kneeR, mix(chamberKnee, extendKnee, strike), weight);
-  joints.footR = mix(joints.footR, mix(chamberFoot, extendFoot, strike), weight);
+  joints.kneeR = mix(joints.kneeR, mix(chamberKnee, kickKnee, strike), weight);
+  joints.footR = mix(joints.footR, mix(chamberFoot, kickFoot, strike), weight);
   joints.chest.x -= 8 * strike;
   joints.head.x -= 3 * strike;
   joints.pelvis.x -= 3 * strike;
@@ -356,4 +363,14 @@ function applyKick(joints: Joints, amount: number): void {
 
 function mix(a: Point, b: Point, t: number): Point {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+function pointAlong(from: Point, to: Point, length: number): Point {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  return {
+    x: from.x + (dx / dist) * length,
+    y: from.y + (dy / dist) * length,
+  };
 }

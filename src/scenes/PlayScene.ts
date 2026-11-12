@@ -32,6 +32,8 @@ export class PlayScene extends Phaser.Scene {
   private crouchAnchor: Phaser.GameObjects.Rectangle | null = null;
   private simTime = 0;
   private hitstopUntil = 0;
+  private demo = false;
+  private demoAttackAt = 0;
 
   constructor() {
     super("play");
@@ -42,6 +44,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.demo = new URLSearchParams(window.location.search).has("demo");
     this.cameras.main.setBackgroundColor("#171a21");
     this.physics.world.gravity.y = GRAVITY_Y;
     this.physics.world.setBounds(0, 0, ROOM.width, ROOM.height);
@@ -340,7 +343,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private readInput(): PlayerInput {
-    return {
+    const input: PlayerInput = {
       left: this.cursors.left.isDown,
       right: this.cursors.right.isDown,
       down: this.cursors.down.isDown,
@@ -349,5 +352,18 @@ export class PlayScene extends Phaser.Scene {
       attackPressed: Phaser.Input.Keyboard.JustDown(this.attackKey),
       hitPressed: Phaser.Input.Keyboard.JustDown(this.hitKey),
     };
+
+    if (!this.demo) {
+      return input;
+    }
+
+    // Hands-free pose reel for art checks: walk in, then jab → hook → kick.
+    if (this.simTime < 900) {
+      input.right = true;
+    } else if (this.simTime >= this.demoAttackAt) {
+      input.attackPressed = true;
+      this.demoAttackAt = this.simTime + 520;
+    }
+    return input;
   }
 }
