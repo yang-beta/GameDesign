@@ -97,22 +97,17 @@ export class PlayerRenderer {
   }
 
   private layout(joints: Joints): void {
-    const hips = {
-      left: { x: joints.pelvis.x - 7, y: joints.pelvis.y + 4 },
-      right: { x: joints.pelvis.x + 7, y: joints.pelvis.y + 4 },
-    };
-
-    // Legs first (behind).
-    this.stretch(PLAYER_PARTS.thighR, hips.right, joints.kneeR);
+    // Shins/feet first. Thighs come from the pelvis art, so skip separate thigh sheets
+    // to avoid a double-leg seam through the middle of the silhouette.
+    this.sprites.thighR.setVisible(false);
+    this.sprites.thighL.setVisible(false);
     this.stretch(PLAYER_PARTS.shinR, joints.kneeR, joints.footR);
     this.tip(PLAYER_PARTS.footR, joints.footR, joints.kneeR, joints.footR);
-
-    this.stretch(PLAYER_PARTS.thighL, hips.left, joints.kneeL);
     this.stretch(PLAYER_PARTS.shinL, joints.kneeL, joints.footL);
     this.tip(PLAYER_PARTS.footL, joints.footL, joints.kneeL, joints.footL);
 
     // Core — shared scale; seat head slightly into the collar so the neck seam overlaps.
-    this.place(PLAYER_PARTS.pelvis, joints.pelvis, 0, BODY_SCALE * 0.82);
+    this.place(PLAYER_PARTS.pelvis, joints.pelvis, 0, BODY_SCALE * 0.9);
     this.place(
       PLAYER_PARTS.torso,
       joints.pelvis,
