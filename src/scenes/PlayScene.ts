@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { queuePlayerArt } from "../art/playerParts";
 import { SANDBAG_SPAWN, ENEMY_SPAWNS, PLATFORMS, PLAYER_SPAWN, ROOM, toRect } from "../data/MapData";
 import { HitSpark } from "../effects/HitSpark";
 import { Enemy } from "../entities/Enemy";
@@ -34,6 +35,10 @@ export class PlayScene extends Phaser.Scene {
 
   constructor() {
     super("play");
+  }
+
+  preload(): void {
+    queuePlayerArt(this.load);
   }
 
   create(): void {
