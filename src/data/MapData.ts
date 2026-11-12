@@ -39,7 +39,7 @@ export const FLOOR: PlatformDef = {
 
 export const PLATFORMS: PlatformDef[] = [
   FLOOR,
-  { id: "step-low", x: 300, surfaceY: 790, width: 150, thickness: 22, color: PLATFORM_COLOR },
+  { id: "step-low", x: 390, surfaceY: 730, width: 110, thickness: 22, color: PLATFORM_COLOR },
   { id: "low-a", x: 520, surfaceY: 740, width: 170, thickness: 22, color: PLATFORM_COLOR },
   { id: "low-b", x: 760, surfaceY: 650, width: 160, thickness: 22, color: PLATFORM_COLOR },
   { id: "mid-a", x: 1020, surfaceY: 540, width: 150, thickness: 22, color: PLATFORM_COLOR },
@@ -64,6 +64,13 @@ export const CLIMBS: Climb[] = [
 export const PLAYER_SPAWN = {
   x: 160,
   surfaceY: FLOOR.surfaceY,
+};
+
+export const SANDBAG_SPAWN = {
+  x: 230,
+  surfaceY: FLOOR.surfaceY,
+  width: 54,
+  height: 120,
 };
 
 export const ENEMY_SPAWNS: EnemySpawn[] = [

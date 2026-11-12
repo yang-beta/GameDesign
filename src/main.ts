@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { GRAVITY_Y } from "./entities/Player";
+import { GRAVITY_Y } from "./entities/PlayerController";
 import { PlayScene } from "./scenes/PlayScene";
 
 const game = new Phaser.Game({

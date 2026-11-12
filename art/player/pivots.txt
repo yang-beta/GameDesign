@@ -1,0 +1,26 @@
+旋轉中心以每張圖的左上角為 (0, 0)，x 向右、y 向下，單位是像素。
+檔名 -l 是畫面左側，也就是角色的右側；-r 是畫面右側，也就是角色的左側。
+沒有左右後綴的四肢圖，用的是畫面左側那一側。
+頭的旋轉中心在頸底，軀幹在腰，其餘零件在靠近身體的那一端。
+
+fist.png  41,10
+fist-l.png  41,10
+fist-r.png  34,10
+foot.png  46,10
+foot-l.png  46,10
+foot-r.png  68,10
+forearm.png  38,10
+forearm-l.png  38,10
+forearm-r.png  38,10
+head.png  74,201
+pelvis.png  128,10
+shin.png  48,10
+shin-l.png  48,10
+shin-r.png  43,10
+thigh.png  69,10
+thigh-l.png  69,10
+thigh-r.png  52,10
+torso.png  107,283
+upper-arm.png  85,10
+upper-arm-l.png  85,10
+upper-arm-r.png  79,10

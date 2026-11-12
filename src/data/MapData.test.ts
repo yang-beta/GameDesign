@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fullJumpHeight } from "../entities/Player";
+import { fullJumpHeight } from "../entities/PlayerController";
 import { CLIMBS, PLATFORMS, ROOM, platformById, surfaceRise, toRect } from "./MapData";
 
 describe("test room", () => {

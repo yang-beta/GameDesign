@@ -54,9 +54,14 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
     body.setVelocityX(this.dir * ENEMY_SPEED);
   }
 
-  takeHit(facing: 1 | -1, attackSerial: number, now: number): void {
+  takeHit(
+    facing: 1 | -1,
+    attackSerial: number,
+    now: number,
+    force: { x: number; y: number } = { x: 160, y: -160 },
+  ): boolean {
     if (!shouldApplyHit(this.lastAttackSerial, attackSerial, this.dying)) {
-      return;
+      return false;
     }
 
     this.lastAttackSerial = attackSerial;
@@ -65,12 +70,12 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
     this.setFillStyle(0xfff1dc);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity(facing * 160, -160);
+    body.setVelocity(facing * force.x, force.y);
 
     if (this.hp <= 0) {
       this.dying = true;
       this.scene.time.delayedCall(90, () => this.destroy());
-      return;
+      return true;
     }
 
     this.scene.time.delayedCall(90, () => {
@@ -78,5 +83,6 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
         this.setFillStyle(ENEMY_COLOR);
       }
     });
+    return true;
   }
 }
