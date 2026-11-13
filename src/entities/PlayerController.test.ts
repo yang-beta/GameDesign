@@ -213,6 +213,10 @@ describe("hurtbox and puppet", () => {
     expect(idle.head.y - idle.head.r).toBeGreaterThanOrEqual(-64);
     expect(idle.footL.y).toBeLessThanOrEqual(64);
     expect(idle.footL.y).toBeGreaterThan(50);
+    // Male V-taper: shoulders wider than the stance/hips.
+    expect(Math.abs(idle.shoulderR.x - idle.shoulderL.x)).toBeGreaterThan(
+      Math.abs(idle.kneeR.x - idle.kneeL.x),
+    );
     expect(jab.fistL.x).toBeGreaterThan(idle.fistL.x + 20);
     expect(jab.chest.x).toBeGreaterThan(idle.chest.x);
     expect(jab.head.x).toBeLessThan(jab.chest.x);

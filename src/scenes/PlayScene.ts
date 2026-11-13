@@ -152,7 +152,7 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 98, "Z 三段拳腳（↓+Z 掃腿）　H 顯示判定框　X 受擊", {
+      .text(24, 98, "Z 三段拳腳（↓+Z 掃腿）　H 判定框+骨架　X 受擊", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "14px",
         color: "#c5cad3",
