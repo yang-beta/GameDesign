@@ -279,20 +279,73 @@ function hitPose(): Joints {
   };
 }
 
+/**
+ * Casual stroll from `reference/螢幕錄影 2026-11-13 17.33.52.mp4`:
+ * upright torso (~0–3° lean), opposite arm/leg, bob peaks at passing,
+ * heel-ish contact with a modest passing lift — not a fighting dash.
+ */
 function applyRun(joints: Joints, cycle: number): void {
-  const swing = Math.sin(cycle);
-  joints.chest.x += 6;
-  joints.shoulderL.x += 6;
-  joints.shoulderR.x += 6;
-  joints.head.x += 4;
-  joints.elbowL.x += -swing * 14;
-  joints.elbowR.x += swing * 14;
-  joints.fistL.y += swing * 10;
-  joints.fistR.y += -swing * 10;
-  joints.kneeL.y += swing * 10;
-  joints.kneeR.y -= swing * 10;
-  joints.footL.x += swing * 12;
-  joints.footR.x -= swing * 12;
+  const rig = activeRig();
+  const phase = cycle * 0.82;
+  const swing = Math.sin(phase);
+  const pass = Math.cos(phase);
+  const bob = (1 - Math.abs(swing)) * 3.2;
+
+  // Drop the combat guard into a relaxed walk arm set, then swing.
+  joints.head.x += 0.5;
+  joints.chest.x += 1;
+  joints.pelvis.x += 0.5;
+  joints.head.y -= bob;
+  joints.chest.y -= bob * 0.85;
+  joints.shoulderL.y -= bob * 0.85;
+  joints.shoulderR.y -= bob * 0.85;
+  joints.pelvis.y -= bob * 0.75;
+
+  const hipL = hipJoint(rig, "left");
+  const hipR = hipJoint(rig, "right");
+  hipL.y = joints.pelvis.y + 3;
+  hipR.y = joints.pelvis.y + 3;
+
+  const stride = 15;
+  const stepLift = 7;
+  joints.footL = {
+    x: swing * stride,
+    y: rig.footY - Math.max(0, pass) * stepLift,
+  };
+  joints.footR = {
+    x: -swing * stride,
+    y: rig.footY - Math.max(0, -pass) * stepLift,
+  };
+
+  const bendL = Math.max(0, pass) * 10;
+  const bendR = Math.max(0, -pass) * 10;
+  joints.kneeL = {
+    x: hipL.x * 0.35 + joints.footL.x * 0.65,
+    y: (hipL.y + joints.footL.y) * 0.5 - bendL,
+  };
+  joints.kneeR = {
+    x: hipR.x * 0.35 + joints.footR.x * 0.65,
+    y: (hipR.y + joints.footR.y) * 0.5 - bendR,
+  };
+
+  // Arms opposite the legs, amp ~±30°, elbows keep a soft bend.
+  const arm = 12;
+  joints.elbowL = {
+    x: joints.shoulderL.x - 2 - swing * 4,
+    y: joints.shoulderL.y + 13 + Math.abs(swing) * 2,
+  };
+  joints.elbowR = {
+    x: joints.shoulderR.x + 2 + swing * 4,
+    y: joints.shoulderR.y + 13 + Math.abs(swing) * 2,
+  };
+  joints.fistL = {
+    x: joints.elbowL.x - swing * arm,
+    y: joints.elbowL.y + 11 - Math.abs(swing) * 2,
+  };
+  joints.fistR = {
+    x: joints.elbowR.x + swing * arm,
+    y: joints.elbowR.y + 11 - Math.abs(swing) * 2,
+  };
 }
 
 function applyTuck(joints: Joints): void {

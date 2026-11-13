@@ -53,15 +53,17 @@ export interface RigMetrics {
 
 /**
  * Male: inverted-triangle torso — shoulders clearly wider than hips,
- * thicker limb reach, pelvis sits a touch lower.
+ * thicker limb reach. Verticals nudged for the stroll walk reference in
+ * `reference/螢幕錄影 2026-11-13 17.33.52.mp4` (upright stack, clearer leg length).
+ * Shoulder/hip widths stay on the anatomy sheet (V-taper).
  */
 export const MALE_RIG: RigMetrics = {
   headR: 12,
   headY: -50,
   shoulderY: -30,
-  chestY: -12,
-  pelvisY: 16,
-  kneeY: 38,
+  chestY: -14,
+  pelvisY: 14,
+  kneeY: 37,
   footY: 60,
   shoulderHalf: 18,
   hipHalf: 11,
@@ -80,7 +82,7 @@ export const FEMALE_RIG: RigMetrics = {
   headY: -51,
   shoulderY: -31,
   chestY: -14,
-  pelvisY: 14,
+  pelvisY: 12,
   kneeY: 38,
   footY: 60,
   shoulderHalf: 13,

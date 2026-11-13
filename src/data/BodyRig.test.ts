@@ -29,7 +29,9 @@ describe("body rig proportions", () => {
     const idle = standJoints(MALE_RIG);
     expect(idle.head.y - idle.head.r).toBeGreaterThanOrEqual(-64);
     expect(idle.footL.y).toBeLessThanOrEqual(64);
-    expect(idle.footL.y - idle.pelvis.y).toBeGreaterThan(35);
+    expect(idle.footL.y - idle.pelvis.y).toBeGreaterThan(40);
+    expect(MALE_RIG.shoulderHalf).toBe(18);
+    expect(MALE_RIG.hipHalf).toBe(11);
     expect(Math.abs(idle.shoulderR.x - idle.shoulderL.x)).toBeGreaterThan(
       Math.abs(idle.kneeR.x - idle.kneeL.x),
     );
