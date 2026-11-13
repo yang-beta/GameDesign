@@ -20,6 +20,12 @@ import type { PlayerViewState } from "./PlayerController";
 
 export type { Joints, Point };
 
+/**
+ * Temporary skeleton-review mode: hide limb sheets so the rig can be judged alone.
+ * Flip back to true after side-view art is ready to reattach.
+ */
+export const SHOW_PLAYER_ART = false;
+
 /** Body paint scale from the torso bone; limbs keep body thickness but stretch to joint length. */
 const BODY_SCALE = 0.128;
 const LIMB_THICKNESS = BODY_SCALE * 0.7;
@@ -80,12 +86,26 @@ export class PlayerRenderer {
     this.root.setScale(view.facing, 1);
     this.root.setAlpha(view.flicker ? 0.35 : 1);
     const joints = buildJoints(view);
-    this.layout(joints);
-    this.drawFx(joints, view);
-    this.drawDebug(view);
+    if (SHOW_PLAYER_ART) {
+      this.layout(joints);
+      this.drawFx(joints, view);
+    } else {
+      this.hideArt();
+      this.fx.clear();
+    }
+    this.drawSkeleton(view, joints);
+  }
+
+  private hideArt(): void {
+    for (const id of PLAYER_DRAW_ORDER) {
+      this.sprites[id].setVisible(false);
+    }
   }
 
   private layout(joints: Joints): void {
+    for (const id of PLAYER_DRAW_ORDER) {
+      this.sprites[id].setVisible(true);
+    }
     // Shins/feet first. Thighs come from the pelvis art, so skip separate thigh sheets
     // to avoid a double-leg seam through the middle of the silhouette.
     this.sprites.thighR.setVisible(false);
@@ -166,22 +186,32 @@ export class PlayerRenderer {
     g.strokePath();
   }
 
-  private drawDebug(view: PlayerViewState): void {
+  private drawSkeleton(view: PlayerViewState, joints: Joints): void {
     const g = this.debug;
     g.clear();
-    if (!view.showHitboxes) {
-      return;
+
+    if (view.showHitboxes) {
+      const box = view.hurtbox;
+      g.fillStyle(0x3c8dff, 0.22);
+      g.fillRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+      g.lineStyle(1, 0x8ec2ff, 0.85);
+      g.strokeRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+      if (view.hitbox) {
+        const hit = view.hitbox;
+        g.fillStyle(0xff2a2a, 0.4);
+        g.fillRect(hit.x - hit.width / 2, hit.y - hit.height / 2, hit.width, hit.height);
+      }
     }
 
-    const box = view.hurtbox;
-    g.fillStyle(0x3c8dff, 0.28);
-    g.fillRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
-    g.lineStyle(1, 0x8ec2ff, 0.85);
-    g.strokeRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+    const fx = (p: Point) => view.x + p.x * view.facing;
+    const fy = (p: Point) => view.y + p.y;
+    const hipL = hipJoint(activeRig(), "left");
+    const hipR = hipJoint(activeRig(), "right");
+    hipL.y = joints.pelvis.y + 3;
+    hipR.y = joints.pelvis.y + 3;
 
-    // Skeleton overlay so anatomy tuning is visible in-game (H toggles with hitboxes).
-    const joints = buildJoints(view);
-    g.lineStyle(2, 0x7dffb2, 0.85);
+    // Always-on stick figure while art is detached.
+    g.lineStyle(3, 0xe8f0ff, 0.95);
     const links: [Point, Point][] = [
       [joints.shoulderL, joints.elbowL],
       [joints.elbowL, joints.fistL],
@@ -189,19 +219,22 @@ export class PlayerRenderer {
       [joints.elbowR, joints.fistR],
       [joints.shoulderL, joints.shoulderR],
       [joints.chest, joints.pelvis],
-      [hipJoint(activeRig(), "left"), joints.kneeL],
+      [hipL, joints.kneeL],
       [joints.kneeL, joints.footL],
-      [hipJoint(activeRig(), "right"), joints.kneeR],
+      [hipR, joints.kneeR],
       [joints.kneeR, joints.footR],
     ];
     for (const [a, b] of links) {
       g.beginPath();
-      g.moveTo(view.x + a.x * view.facing, view.y + a.y);
-      g.lineTo(view.x + b.x * view.facing, view.y + b.y);
+      g.moveTo(fx(a), fy(a));
+      g.lineTo(fx(b), fy(b));
       g.strokePath();
     }
+
+    g.lineStyle(2, 0x9eb7ff, 0.9);
+    g.strokeCircle(fx(joints.head), fy(joints.head), joints.head.r);
+    g.fillStyle(0xfff36a, 1);
     for (const p of [
-      joints.head,
       joints.shoulderL,
       joints.shoulderR,
       joints.elbowL,
@@ -210,21 +243,15 @@ export class PlayerRenderer {
       joints.fistR,
       joints.chest,
       joints.pelvis,
+      hipL,
+      hipR,
       joints.kneeL,
       joints.kneeR,
       joints.footL,
       joints.footR,
     ]) {
-      g.fillStyle(0xfff36a, 0.95);
-      g.fillCircle(view.x + p.x * view.facing, view.y + p.y, 2.4);
+      g.fillCircle(fx(p), fy(p), 3);
     }
-
-    if (!view.hitbox) {
-      return;
-    }
-    const hit = view.hitbox;
-    g.fillStyle(0xff2a2a, 0.4);
-    g.fillRect(hit.x - hit.width / 2, hit.y - hit.height / 2, hit.width, hit.height);
   }
 }
 
