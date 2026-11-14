@@ -44,11 +44,22 @@
 - `01-idle/preview.gif`、`applied_loop.gif`：8 幀 ping-pong 呼吸循環
 - `frame_*.png`、`strip.png`、`comparison.png`、`joints.json`
 
-### 02–04 — 連續動畫（檢視用，尚未套用）
+### 02–04 — 連續動畫（檢視／已部分套用遊戲）
 | 動作 | 目錄 | 預覽 |
 |------|------|------|
 | 02 行走 | `02-walk/` | `preview.gif` |
 | 03 站立拳 | `03-standing-punches/` | `preview.gif` |
 | 04 站立踢 | `04-standing-kicks/` | `preview.gif` |
 
-詳見 `REVIEW_01_04.md`。確認 02–04 後再套用。
+### 05–11 — 連續動畫（檢視用，尚未套用）
+| 動作 | 目錄 | 預覽 |
+|------|------|------|
+| 05 近身攻擊 | `05-close-attacks/` | `preview.gif` |
+| 06 跳躍 | `06-jump/` | `preview.gif` |
+| 07 跳躍攻擊 | `07-jump-attacks/` | `preview.gif` |
+| 08 旋風腳 | `08-tatsumaki/` | `preview.gif` |
+| 09 蹲下 | `09-crouch/` | `preview.gif` |
+| 10 蹲下拳 | `10-crouching-punches/` | `preview.gif` |
+| 11 蹲下踢／掃堂腿 | `11-crouching-kicks-sweep/` | `preview.gif` |
+
+詳見 `REVIEW_05_11.md`。確認後再指示套用。

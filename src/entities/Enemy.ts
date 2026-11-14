@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import type { EnemySpawn } from "../data/MapData";
 import { EnemyHealthBar } from "./EnemyHealthBar";
 
-export const ENEMY_WIDTH = 40;
-export const ENEMY_HEIGHT = 96;
+/** Match player stand hurtbox height so standing strikes connect cleanly. */
+export const ENEMY_WIDTH = 46;
+export const ENEMY_HEIGHT = 128;
 export const ENEMY_SPEED = 70;
 export const ENEMY_HP = 5;
 const ENEMY_COLOR = 0xe0863a;
@@ -50,7 +51,7 @@ export class Enemy extends Phaser.GameObjects.Rectangle {
 
     // Visual shake overlay (does not move physics body)
     this.hitFx = scene.add
-      .rectangle(this.x, this.y, ENEMY_WIDTH + 6, ENEMY_HEIGHT + 6, 0xffffff, 0)
+      .rectangle(this.x, this.y, ENEMY_WIDTH + 8, ENEMY_HEIGHT + 8, 0xffffff, 0)
       .setDepth(2)
       .setStrokeStyle(2, 0xffffff, 0);
     this.healthBar = new EnemyHealthBar(scene, ENEMY_HP);
