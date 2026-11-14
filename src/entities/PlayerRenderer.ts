@@ -34,7 +34,11 @@ const PALM = 0x2d2d2d;
 const FOOT = 0x373737;
 
 export function buildJoints(view: PlayerViewState): Joints {
-  if (view.pose === "crouch" || view.pose === "sweep") {
+  if (
+    view.pose === "crouch" ||
+    view.pose === "crouchPunch" ||
+    view.pose === "crouchKick"
+  ) {
     return crouchPose(view);
   }
   if (view.pose === "hit") {
@@ -45,7 +49,7 @@ export function buildJoints(view: PlayerViewState): Joints {
   if (view.pose === "run") {
     applyWalk(joints, view.cycle);
   } else if (view.pose === "jump") {
-    applyTuck(joints);
+    applyJump(joints, view.attackAmount > 0 ? view.attackAmount : 0.55);
   } else if (view.pose === "fall") {
     applyFall(joints);
   } else if (view.pose === "jab") {
@@ -54,6 +58,11 @@ export function buildJoints(view: PlayerViewState): Joints {
     applyHook(joints, view.attackAmount);
   } else if (view.pose === "kick") {
     applyKick(joints, view.attackAmount);
+  } else if (view.pose === "jumpPunch") {
+    applyJump(joints, 0.7);
+    applyJumpPunch(joints, view.attackAmount);
+  } else if (view.pose === "tatsumaki") {
+    applyTatsumaki(joints, view.attackAmount, view.cycle);
   }
   return joints;
 }
@@ -213,18 +222,33 @@ function crouchPose(view: PlayerViewState): Joints {
     footLDeg: 10,
     footRDeg: 5,
   };
-  if (view.pose === "sweep") {
+  if (view.pose === "crouchPunch") {
     const t = view.attackAmount;
-    joints.kneeR = mix(joints.kneeR, { x: 28, y: 24 }, t);
-    joints.footR = mix(joints.footR, { x: 50, y: 30 }, t);
+    joints.fistL = mix(joints.fistL, { x: 44, y: 8 }, t);
+    joints.elbowL = mix(joints.elbowL, { x: 22, y: 6 }, t);
+    joints.shoulderL = mix(joints.shoulderL, { x: 2, y: -2 }, t * 0.7);
+    joints.chest.x += 8 * t;
+    joints.head.x += 4 * t;
+    joints.fistR = mix(joints.fistR, { x: -10, y: 10 }, t);
+    joints.handLDeg = 5;
+    joints.handRDeg = 200;
+    joints.footLDeg = 8;
+    joints.footRDeg = 5;
+  }
+  // 11 crouch kick — frames 01–06 style (low forward kick, not full sweep)
+  if (view.pose === "crouchKick") {
+    const t = view.attackAmount;
+    joints.kneeR = mix(joints.kneeR, { x: 34, y: 22 }, t);
+    joints.footR = mix(joints.footR, { x: 56, y: 30 }, t);
     joints.kneeL = mix(joints.kneeL, { x: -18, y: 22 }, t);
-    joints.chest.x = -8 * t;
-    joints.head.x = -3 * t;
-    joints.pelvis.x = -4 * t;
-    joints.fistL = mix(joints.fistL, { x: -14, y: -18 }, t);
-    joints.fistR = mix(joints.fistR, { x: -2, y: -16 }, t);
+    joints.chest.x -= 4 * t;
+    joints.head.x -= 2 * t;
+    joints.pelvis.x -= 2 * t;
+    joints.fistL = mix(joints.fistL, { x: -12, y: -14 }, t);
+    joints.fistR = mix(joints.fistR, { x: 4, y: -12 }, t);
     joints.footRDeg = 0;
-    joints.handRDeg = 0;
+    joints.handLDeg = -40;
+    joints.handRDeg = 15;
   }
   return joints;
 }
@@ -288,15 +312,62 @@ function applyWalk(joints: Joints, cycle: number): void {
   joints.footRDeg = liftR > 3 ? 22 : 5;
 }
 
-function applyTuck(joints: Joints): void {
-  joints.kneeL = { x: -10, y: 4 };
-  joints.kneeR = { x: 12, y: 2 };
-  joints.footL = { x: -16, y: -8 };
-  joints.footR = { x: 18, y: -6 };
-  joints.elbowL.y -= 6;
-  joints.elbowR.y -= 6;
-  joints.footLDeg = -40;
-  joints.footRDeg = -30;
+/** 06 Jump stick pose (tuck ↔ open by amount). */
+function applyJump(joints: Joints, amount: number): void {
+  const t = Math.max(0, Math.min(1, amount));
+  joints.kneeL = mix(joints.kneeL, { x: -12, y: 8 }, 0.4 + t * 0.4);
+  joints.kneeR = mix(joints.kneeR, { x: 14, y: 6 }, 0.4 + t * 0.4);
+  joints.footL = mix(joints.footL, { x: -14, y: 28 }, 0.35 + t * 0.4);
+  joints.footR = mix(joints.footR, { x: 16, y: 28 }, 0.35 + t * 0.4);
+  joints.elbowL = mix(joints.elbowL, { x: -22, y: -18 }, t);
+  joints.elbowR = mix(joints.elbowR, { x: 24, y: -16 }, t);
+  joints.fistL = mix(joints.fistL, { x: -18, y: -32 }, t);
+  joints.fistR = mix(joints.fistR, { x: 20, y: -30 }, t);
+  joints.handLDeg = -90;
+  joints.handRDeg = -90;
+  joints.footLDeg = 85;
+  joints.footRDeg = 85;
+}
+
+function applyJumpPunch(joints: Joints, amount: number): void {
+  joints.fistL = mix(joints.fistL, { x: 48, y: -10 }, amount);
+  joints.elbowL = mix(joints.elbowL, { x: 26, y: -10 }, amount);
+  joints.shoulderL = mix(joints.shoulderL, { x: 4, y: -22 }, amount * 0.6);
+  joints.chest.x += 6 * amount;
+  joints.fistR = mix(joints.fistR, { x: -8, y: -6 }, amount);
+  joints.handLDeg = 0;
+  joints.handRDeg = 200;
+}
+
+function applyTatsumaki(joints: Joints, amount: number, cycle: number): void {
+  const spin = cycle * 2.2;
+  const extend = Math.max(0.35, amount);
+  joints.chest.y -= 8;
+  joints.pelvis.y -= 10;
+  joints.kneeR = {
+    x: Math.cos(spin) * (28 + extend * 30),
+    y: -4 + Math.sin(spin) * 10,
+  };
+  joints.footR = {
+    x: Math.cos(spin) * (52 + extend * 28),
+    y: -6 + Math.sin(spin) * 14,
+  };
+  joints.kneeL = {
+    x: Math.cos(spin + Math.PI) * 16,
+    y: 18 + Math.sin(spin + Math.PI) * 8,
+  };
+  joints.footL = {
+    x: Math.cos(spin + Math.PI) * 10,
+    y: 34 + Math.sin(spin + Math.PI) * 6,
+  };
+  joints.elbowL = { x: -10, y: -8 };
+  joints.elbowR = { x: 10, y: -8 };
+  joints.fistL = { x: -6, y: 6 };
+  joints.fistR = { x: 6, y: 6 };
+  joints.handLDeg = 90;
+  joints.handRDeg = 90;
+  joints.footRDeg = (spin * 180) / Math.PI;
+  joints.footLDeg = (spin * 180) / Math.PI + 180;
 }
 
 function applyFall(joints: Joints): void {

@@ -112,7 +112,7 @@ export class PlayScene extends Phaser.Scene {
     });
 
     this.add
-      .rectangle(12, 12, 720, 148, 0x000000, 0.55)
+      .rectangle(12, 12, 760, 168, 0x000000, 0.55)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(20);
@@ -124,12 +124,12 @@ export class PlayScene extends Phaser.Scene {
     };
 
     this.add
-      .text(24, 20, "Project：獸王覺醒 Beast Awakening — 火柴人動作", labelStyle)
+      .text(24, 18, "Project：獸王覺醒 Beast Awakening — 火柴人動作", labelStyle)
       .setScrollFactor(0)
       .setDepth(21);
 
     this.statusText = this.add
-      .text(24, 44, "狀態：站立", {
+      .text(24, 40, "狀態：站立", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "22px",
         color: "#f4f7fb",
@@ -138,7 +138,7 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 76, "←→ 行走　空白 跳躍　↓ 蹲下　↓+空白 落到下一層", {
+      .text(24, 70, "←→ 行走　空白 跳躍　↓ 蹲下　↓+空白 落到下一層", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "14px",
         color: "#c5cad3",
@@ -147,7 +147,7 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 98, "Z 站立拳（連按 jab→hook｜↓+Z 掃腿）　C 站立踢　H 判定框　X 受擊", {
+      .text(24, 92, "地面：Z 站立拳　C 站立踢　｜　空中：Z 跳躍攻擊　C 旋風腳", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "14px",
         color: "#c5cad3",
@@ -156,7 +156,16 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 120, "命中敵人會顯示血條，並有閃光／震動／擊退反應", {
+      .text(24, 114, "蹲下中：Z 蹲下拳　C 蹲下踢　｜　H 判定框　X 受擊", {
+        fontFamily: labelStyle.fontFamily,
+        fontSize: "14px",
+        color: "#c5cad3",
+      })
+      .setScrollFactor(0)
+      .setDepth(21);
+
+    this.add
+      .text(24, 136, "命中敵人顯示血條；跳躍技需在空中、蹲下技需先按 ↓", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "13px",
         color: "#9eb0d6",

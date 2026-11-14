@@ -176,23 +176,47 @@ describe("combo", () => {
     expect(state.attack).toBe("jab");
   });
 
-  it("uses a low sweep instead of the standing chain while crouching", () => {
-    const state = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, true);
-    expect(state.attack).toBe("sweep");
-    expect(state.comboSlot).toBe(0);
+  it("uses crouch punch / crouch kick while crouching, and air moves while airborne", () => {
+    const crouchPunch = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: true,
+      airborne: false,
+      preferKick: false,
+    });
+    expect(crouchPunch.attack).toBe("crouchPunch");
+
+    const crouchKick = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: true,
+      airborne: false,
+      preferKick: true,
+    });
+    expect(crouchKick.attack).toBe("crouchKick");
+
+    const jumpPunch = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: false,
+      airborne: true,
+      preferKick: false,
+    });
+    expect(jumpPunch.attack).toBe("jumpPunch");
+
+    const tatsu = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: false,
+      airborne: true,
+      preferKick: true,
+    });
+    expect(tatsu.attack).toBe("tatsumaki");
   });
 
-  it("places the hook above the jab, the kick wider, and the sweep lower", () => {
+  it("places the hook above the jab, the kick wider, and crouch kick lower", () => {
     const jab = makeHitbox(0, 0, 1, "jab");
     const hook = makeHitbox(0, 0, 1, "hook");
     const kick = makeHitbox(0, 0, 1, "kick");
-    const sweep = makeHitbox(0, 0, 1, "sweep");
+    const crouchKick = makeHitbox(0, 0, 1, "crouchKick");
     const left = makeHitbox(0, 0, -1, "jab");
 
     expect(hook.y).toBeLessThan(jab.y);
     expect(kick.width).toBeGreaterThan(jab.width);
     expect(ATTACKS.kick.knockback).toBeGreaterThan(ATTACKS.jab.knockback);
-    expect(sweep.y).toBeGreaterThan(jab.y);
+    expect(crouchKick.y).toBeGreaterThan(jab.y);
     expect(left.x).toBeLessThan(0);
     expect(jab.x).toBeGreaterThan(0);
     expect(kick.width).toBeLessThan(60);
@@ -234,7 +258,10 @@ describe("hurtbox and puppet", () => {
     expect(crouch.footL.y).toBeLessThan(34);
     expect(describePose("jab")).toBe("左直拳");
     expect(describePose("kick")).toBe("重踢");
-    expect(describePose("sweep")).toBe("下段掃腿");
+    expect(describePose("jumpPunch")).toBe("跳躍攻擊");
+    expect(describePose("tatsumaki")).toBe("旋風腳");
+    expect(describePose("crouchPunch")).toBe("蹲下拳");
+    expect(describePose("crouchKick")).toBe("蹲下踢");
     expect(describePose("hit")).toBe("受擊");
   });
 });
@@ -250,7 +277,7 @@ function view(pose: PlayerViewState["pose"], attackAmount = 0): PlayerViewState 
     attackPhase: attackAmount > 0 ? "active" : "done",
     attackAmount,
     showHitboxes: false,
-    hurtbox: hurtboxFor(pose === "crouch" || pose === "sweep"),
+    hurtbox: hurtboxFor(pose === "crouch" || pose === "crouchPunch" || pose === "crouchKick"),
     hitbox: null,
     flicker: false,
     status: describePose(pose),

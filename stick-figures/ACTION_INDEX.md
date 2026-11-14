@@ -51,15 +51,17 @@
 | 03 站立拳 | `03-standing-punches/` | `preview.gif` |
 | 04 站立踢 | `04-standing-kicks/` | `preview.gif` |
 
-### 05–11 — 連續動畫（檢視用，尚未套用）
+### 05 — 連續動畫（檢視用，尚未套用）
 | 動作 | 目錄 | 預覽 |
 |------|------|------|
 | 05 近身攻擊 | `05-close-attacks/` | `preview.gif` |
-| 06 跳躍 | `06-jump/` | `preview.gif` |
-| 07 跳躍攻擊 | `07-jump-attacks/` | `preview.gif` |
-| 08 旋風腳 | `08-tatsumaki/` | `preview.gif` |
-| 09 蹲下 | `09-crouch/` | `preview.gif` |
-| 10 蹲下拳 | `10-crouching-punches/` | `preview.gif` |
-| 11 蹲下踢／掃堂腿 | `11-crouching-kicks-sweep/` | `preview.gif` |
 
-詳見 `REVIEW_05_11.md`。確認後再指示套用。
+### 06–11 — 已套用遊戲
+| 動作 | 操作 | 條件 |
+|------|------|------|
+| 06 跳躍 | `空白` | — |
+| 07 跳躍攻擊 | 空中 + `Z` | 必須在跳躍／空中（含二段跳） |
+| 08 旋風腳 | 空中 + `C` | 必須在跳躍／空中（含二段跳）；與 07 鍵不同 |
+| 09 蹲下 | `↓` | — |
+| 10 蹲下拳 | 蹲下 + `Z` | 必須先蹲下 |
+| 11 蹲下踢 | 蹲下 + `C` | 必須先蹲下；僅 frame 01–06 連續動作 |
