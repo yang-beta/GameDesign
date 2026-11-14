@@ -18,7 +18,14 @@ export const HITSTUN_MS = 480;
 export const INVULNERABLE_MS = 780;
 
 export type Facing = 1 | -1;
-export type AttackKind = "jab" | "hook" | "kick" | "sweep";
+export type AttackKind =
+  | "jab"
+  | "hook"
+  | "kick"
+  | "jumpPunch"
+  | "tatsumaki"
+  | "crouchPunch"
+  | "crouchKick";
 export type Pose = "idle" | "run" | "jump" | "fall" | "crouch" | AttackKind | "hit";
 export type AttackPhase = "startup" | "active" | "recovery" | "done";
 
@@ -27,7 +34,7 @@ export interface AttackProfile {
   startup: number;
   active: number;
   recovery: number;
-    hitbox: { width: number; height: number; reach: number; lift: number };
+  hitbox: { width: number; height: number; reach: number; lift: number };
   step: number;
   knockback: number;
   knockbackY: number;
@@ -38,50 +45,95 @@ export const ATTACKS: Record<AttackKind, AttackProfile> = {
   jab: {
     kind: "jab",
     startup: 40,
-    active: 70,
-    recovery: 140,
-    hitbox: { width: 24, height: 20, reach: 40, lift: 14 },
+    active: 100,
+    recovery: 120,
+    hitbox: { width: 40, height: 48, reach: 56, lift: -8 },
     step: 150,
-    knockback: 90,
-    knockbackY: -20,
-    hitstop: 40,
+    knockback: 120,
+    knockbackY: -40,
+    hitstop: 50,
   },
   hook: {
     kind: "hook",
     startup: 90,
-    active: 110,
-    recovery: 170,
-    hitbox: { width: 30, height: 28, reach: 34, lift: 30 },
+    active: 120,
+    recovery: 150,
+    hitbox: { width: 44, height: 52, reach: 52, lift: 4 },
     step: 50,
-    knockback: 160,
-    knockbackY: -90,
-    hitstop: 40,
+    knockback: 200,
+    knockbackY: -110,
+    hitstop: 55,
   },
   kick: {
     kind: "kick",
-    startup: 170,
-    active: 130,
-    recovery: 230,
-    hitbox: { width: 34, height: 26, reach: 54, lift: 8 },
-    step: 280,
-    knockback: 340,
-    knockbackY: -200,
-    hitstop: 80,
-  },
-  sweep: {
-    kind: "sweep",
-    startup: 80,
-    active: 130,
+    startup: 120,
+    active: 150,
     recovery: 180,
-    hitbox: { width: 36, height: 18, reach: 42, lift: -26 },
+    hitbox: { width: 52, height: 44, reach: 78, lift: -12 },
+    step: 280,
+    knockback: 380,
+    knockbackY: -220,
+    hitstop: 90,
+  },
+  /** 07 跳躍攻擊 — air + Z */
+  jumpPunch: {
+    kind: "jumpPunch",
+    startup: 60,
+    active: 140,
+    recovery: 120,
+    hitbox: { width: 42, height: 40, reach: 58, lift: 6 },
+    step: 40,
+    knockback: 180,
+    knockbackY: -80,
+    hitstop: 55,
+  },
+  /** 08 旋風腳 — air + C */
+  tatsumaki: {
+    kind: "tatsumaki",
+    startup: 80,
+    active: 280,
+    recovery: 160,
+    hitbox: { width: 70, height: 48, reach: 36, lift: 0 },
+    step: 220,
+    knockback: 260,
+    knockbackY: -140,
+    hitstop: 70,
+  },
+  /** 10 蹲下拳 — crouch + Z */
+  crouchPunch: {
+    kind: "crouchPunch",
+    startup: 50,
+    active: 110,
+    recovery: 140,
+    hitbox: { width: 44, height: 36, reach: 54, lift: -28 },
     step: 80,
-    knockback: 190,
+    knockback: 140,
+    knockbackY: -30,
+    hitstop: 45,
+  },
+  /** 11 蹲下踢（僅 frame 01–06）— crouch + C */
+  crouchKick: {
+    kind: "crouchKick",
+    startup: 70,
+    active: 130,
+    recovery: 150,
+    hitbox: { width: 50, height: 30, reach: 62, lift: -34 },
+    step: 60,
+    knockback: 200,
     knockbackY: -40,
-    hitstop: 40,
+    hitstop: 50,
   },
 };
 
-const STANDING_CHAIN: readonly AttackKind[] = ["jab", "hook", "kick"];
+/** Ground Z: standing punches only (jab → hook). */
+const PUNCH_CHAIN: readonly AttackKind[] = ["jab", "hook"];
+
+export interface AttackContext {
+  crouching: boolean;
+  /** True while airborne (incl. after 2nd air jump). */
+  airborne: boolean;
+  preferKick: boolean;
+}
 
 export interface JumpState {
   groundJumpAvailable: boolean;
@@ -115,7 +167,10 @@ export interface PlayerInput {
   down: boolean;
   jumpPressed: boolean;
   jumpReleased: boolean;
+  /** Standing punch chain (Z) */
   attackPressed: boolean;
+  /** Standing kick (C) */
+  kickPressed: boolean;
   hitPressed: boolean;
 }
 
@@ -281,7 +336,17 @@ export function noteAttackPress(state: CombatState, now: number): CombatState {
   };
 }
 
-export function beginBufferedAttack(state: CombatState, now: number, crouching: boolean): CombatState {
+export function beginBufferedAttack(
+  state: CombatState,
+  now: number,
+  ctx: AttackContext | boolean,
+  preferKickLegacy = false,
+): CombatState {
+  const context: AttackContext =
+    typeof ctx === "boolean"
+      ? { crouching: ctx, airborne: false, preferKick: preferKickLegacy }
+      : ctx;
+
   if (now > state.bufferUntil || now < state.hitstunUntil) {
     return state;
   }
@@ -294,15 +359,24 @@ export function beginBufferedAttack(state: CombatState, now: number, crouching: 
 
   let comboSlot = state.comboSlot;
   let attack: AttackKind;
-  if (crouching) {
-    attack = "sweep";
+
+  if (context.airborne) {
+    // 07 Jump Attack = air + Z; 08 Tatsumaki = air + C (works on 2nd air jump too)
+    attack = context.preferKick ? "tatsumaki" : "jumpPunch";
+    comboSlot = 0;
+  } else if (context.crouching) {
+    // 10 Crouch Punch = crouch + Z; 11 Crouch Kick = crouch + C (frames 01–06)
+    attack = context.preferKick ? "crouchKick" : "crouchPunch";
+    comboSlot = 0;
+  } else if (context.preferKick) {
+    attack = "kick";
     comboSlot = 0;
   } else {
     if (state.pressGap > COMBO_RESET_MS) {
       comboSlot = 0;
     }
-    attack = STANDING_CHAIN[comboSlot] ?? "jab";
-    comboSlot = ((comboSlot + 1) % 3) as 0 | 1 | 2;
+    attack = PUNCH_CHAIN[comboSlot % PUNCH_CHAIN.length] ?? "jab";
+    comboSlot = ((comboSlot + 1) % PUNCH_CHAIN.length) as 0 | 1 | 2;
   }
 
   return {
@@ -317,16 +391,16 @@ export function beginBufferedAttack(state: CombatState, now: number, crouching: 
 
 export function attackVelocity(kind: AttackKind, phase: AttackPhase): number {
   const attack = ATTACKS[kind];
-  if (kind === "kick") {
+  if (kind === "kick" || kind === "tatsumaki") {
     if (phase === "startup") {
-      return 30;
+      return kind === "tatsumaki" ? 80 : 30;
     }
     if (phase === "active") {
       return attack.step;
     }
-    return 0;
+    return kind === "tatsumaki" ? 40 : 0;
   }
-  if (kind === "jab" && (phase === "startup" || phase === "active")) {
+  if ((kind === "jab" || kind === "jumpPunch") && (phase === "startup" || phase === "active")) {
     return attack.step;
   }
   if (phase === "active") {
@@ -374,7 +448,7 @@ export function describePose(pose: Pose): string {
     case "idle":
       return "站立";
     case "run":
-      return "跑步";
+      return "行走";
     case "jump":
       return "跳躍中";
     case "fall":
@@ -387,11 +461,25 @@ export function describePose(pose: Pose): string {
       return "右擺拳";
     case "kick":
       return "重踢";
-    case "sweep":
-      return "下段掃腿";
+    case "jumpPunch":
+      return "跳躍攻擊";
+    case "tatsumaki":
+      return "旋風腳";
+    case "crouchPunch":
+      return "蹲下拳";
+    case "crouchKick":
+      return "蹲下踢";
     case "hit":
       return "受擊";
   }
+}
+
+export function isCrouchAttack(kind: AttackKind | null): boolean {
+  return kind === "crouchPunch" || kind === "crouchKick";
+}
+
+export function isAirAttack(kind: AttackKind | null): boolean {
+  return kind === "jumpPunch" || kind === "tatsumaki";
 }
 
 export class PlayerController {
@@ -411,6 +499,7 @@ export class PlayerController {
   private crouchAnchorTop: number | null = null;
   private jumpStartedAt = -10000;
   private airJumpLimit = STARTING_AIR_JUMPS;
+  private preferKick = false;
   private view: PlayerViewState;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -504,7 +593,11 @@ export class PlayerController {
   }
 
   update(time: number, delta: number, input: PlayerInput): void {
-    if (input.attackPressed) {
+    if (input.kickPressed) {
+      this.preferKick = true;
+      this.combat = noteAttackPress(this.combat, time);
+    } else if (input.attackPressed) {
+      this.preferKick = false;
       this.combat = noteAttackPress(this.combat, time);
     }
 
@@ -543,14 +636,18 @@ export class PlayerController {
 
     const attackLock = this.attackLock(time);
     const inHitstun = time < this.combat.hitstunUntil;
-    const standingStrikeEarly =
-      this.combat.attack === "jab" || this.combat.attack === "hook" || this.combat.attack === "kick";
+    const strikeBusy =
+      this.combat.attack === "jab" ||
+      this.combat.attack === "hook" ||
+      this.combat.attack === "kick" ||
+      isCrouchAttack(this.combat.attack) ||
+      isAirAttack(this.combat.attack);
     const intent = resolveVerticalIntent({
       down: input.down,
       jumpPressed: input.jumpPressed,
       supported,
       locked: inHitstun || attackLock,
-      standingStrike: standingStrikeEarly,
+      standingStrike: strikeBusy && !isAirAttack(this.combat.attack),
     });
     if (!intent.allowJump) {
       this.jump.jumpBufferUntil = -1;
@@ -601,11 +698,23 @@ export class PlayerController {
       anchored &&
       !jumped &&
       !inHitstun &&
-      !standingStrikeEarly;
-    this.combat = beginBufferedAttack(this.combat, time, holdCrouch);
-    this.crouching = this.combat.attack === "sweep" || holdCrouch;
+      !strikeBusy;
+    // Airborne for attack gating: not supported (includes mid-air after 2nd jump)
+    const airborne = !supported && !this.dropActive;
+    const beforeAttack = this.combat.attack;
+    this.combat = beginBufferedAttack(this.combat, time, {
+      crouching: holdCrouch,
+      airborne,
+      preferKick: this.preferKick,
+    });
+    if (this.combat.attack !== beforeAttack) {
+      this.preferKick = false;
+    } else if (time > this.combat.bufferUntil) {
+      this.preferKick = false;
+    }
+    this.crouching = isCrouchAttack(this.combat.attack) || holdCrouch;
     this.applyStance(this.crouching);
-    if (holdCrouch && this.crouchAnchorTop !== null) {
+    if (holdCrouch && this.crouchAnchorTop !== null && !isAirAttack(this.combat.attack)) {
       body.setAllowGravity(false);
       this.plantFeet(this.crouchAnchorTop);
     } else {
@@ -622,11 +731,15 @@ export class PlayerController {
       : null;
     if (this.combat.attack && timing && timing.phase !== "done" && timing.phase !== "recovery") {
       body.setVelocityX(this.facing * attackVelocity(this.combat.attack, timing.phase));
+      // Tatsumaki: slight float during active spin
+      if (this.combat.attack === "tatsumaki" && timing.phase === "active" && body.velocity.y > 40) {
+        body.setVelocityY(40);
+      }
     } else if (input.left && !input.right) {
-      body.setVelocityX((this.crouching ? -CROUCH_SPEED : -RUN_SPEED));
+      body.setVelocityX(this.crouching ? -CROUCH_SPEED : -RUN_SPEED);
     } else if (input.right && !input.left) {
       body.setVelocityX(this.crouching ? CROUCH_SPEED : RUN_SPEED);
-    } else {
+    } else if (!(this.combat.attack === "tatsumaki" && timing && timing.phase === "recovery")) {
       body.setVelocityX(0);
     }
 

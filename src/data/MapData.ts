@@ -74,6 +74,8 @@ export const SANDBAG_SPAWN = {
 };
 
 export const ENEMY_SPAWNS: EnemySpawn[] = [
+  /** Near spawn for easy punch/kick testing */
+  { id: "walker-near", x: 360, surfaceY: FLOOR.surfaceY, patrol: 40 },
   { id: "walker-floor", x: 640, surfaceY: FLOOR.surfaceY, patrol: 100 },
   { id: "walker-drop", x: 1620, surfaceY: 630, patrol: 70 },
   { id: "walker-low-c", x: 2000, surfaceY: 770, patrol: 80 },
