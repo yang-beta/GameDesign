@@ -81,7 +81,8 @@ export const ATTACKS: Record<AttackKind, AttackProfile> = {
   },
 };
 
-const STANDING_CHAIN: readonly AttackKind[] = ["jab", "hook", "kick"];
+/** Z key: standing punches only (jab → hook). Kick is a dedicated key. */
+const PUNCH_CHAIN: readonly AttackKind[] = ["jab", "hook"];
 
 export interface JumpState {
   groundJumpAvailable: boolean;
@@ -115,7 +116,10 @@ export interface PlayerInput {
   down: boolean;
   jumpPressed: boolean;
   jumpReleased: boolean;
+  /** Standing punch chain (Z) */
   attackPressed: boolean;
+  /** Standing kick (C) */
+  kickPressed: boolean;
   hitPressed: boolean;
 }
 
@@ -281,7 +285,12 @@ export function noteAttackPress(state: CombatState, now: number): CombatState {
   };
 }
 
-export function beginBufferedAttack(state: CombatState, now: number, crouching: boolean): CombatState {
+export function beginBufferedAttack(
+  state: CombatState,
+  now: number,
+  crouching: boolean,
+  preferKick = false,
+): CombatState {
   if (now > state.bufferUntil || now < state.hitstunUntil) {
     return state;
   }
@@ -294,15 +303,18 @@ export function beginBufferedAttack(state: CombatState, now: number, crouching: 
 
   let comboSlot = state.comboSlot;
   let attack: AttackKind;
-  if (crouching) {
+  if (crouching && !preferKick) {
     attack = "sweep";
+    comboSlot = 0;
+  } else if (preferKick) {
+    attack = "kick";
     comboSlot = 0;
   } else {
     if (state.pressGap > COMBO_RESET_MS) {
       comboSlot = 0;
     }
-    attack = STANDING_CHAIN[comboSlot] ?? "jab";
-    comboSlot = ((comboSlot + 1) % 3) as 0 | 1 | 2;
+    attack = PUNCH_CHAIN[comboSlot % PUNCH_CHAIN.length] ?? "jab";
+    comboSlot = ((comboSlot + 1) % PUNCH_CHAIN.length) as 0 | 1 | 2;
   }
 
   return {
@@ -374,7 +386,7 @@ export function describePose(pose: Pose): string {
     case "idle":
       return "站立";
     case "run":
-      return "跑步";
+      return "行走";
     case "jump":
       return "跳躍中";
     case "fall":
@@ -411,6 +423,7 @@ export class PlayerController {
   private crouchAnchorTop: number | null = null;
   private jumpStartedAt = -10000;
   private airJumpLimit = STARTING_AIR_JUMPS;
+  private preferKick = false;
   private view: PlayerViewState;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -504,7 +517,11 @@ export class PlayerController {
   }
 
   update(time: number, delta: number, input: PlayerInput): void {
-    if (input.attackPressed) {
+    if (input.kickPressed) {
+      this.preferKick = true;
+      this.combat = noteAttackPress(this.combat, time);
+    } else if (input.attackPressed) {
+      this.preferKick = false;
       this.combat = noteAttackPress(this.combat, time);
     }
 
@@ -602,7 +619,13 @@ export class PlayerController {
       !jumped &&
       !inHitstun &&
       !standingStrikeEarly;
-    this.combat = beginBufferedAttack(this.combat, time, holdCrouch);
+    const beforeAttack = this.combat.attack;
+    this.combat = beginBufferedAttack(this.combat, time, holdCrouch, this.preferKick);
+    if (this.combat.attack !== beforeAttack) {
+      this.preferKick = false;
+    } else if (time > this.combat.bufferUntil) {
+      this.preferKick = false;
+    }
     this.crouching = this.combat.attack === "sweep" || holdCrouch;
     this.applyStance(this.crouching);
     if (holdCrouch && this.crouchAnchorTop !== null) {

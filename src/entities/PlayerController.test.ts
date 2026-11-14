@@ -127,7 +127,7 @@ describe("player movement", () => {
 });
 
 describe("combo", () => {
-  it("remembers Z for 0.15s and chains jab, hook, then kick", () => {
+  it("remembers Z for 0.15s and chains jab then hook; C starts a kick", () => {
     expect(ATTACK_BUFFER_MS).toBe(150);
     expect(COMBO_RESET_MS).toBe(600);
     expect(ATTACKS.jab.hitstop).toBe(40);
@@ -146,9 +146,13 @@ describe("combo", () => {
     state = beginBufferedAttack(tickCombat(state, 120), 120, false);
     expect(state.attack).toBe("hook");
 
-    const kickAt = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active;
-    state = noteAttackPress(state, kickAt - 40);
-    state = beginBufferedAttack(state, kickAt, false);
+    const afterHook = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active;
+    state = noteAttackPress(state, afterHook - 40);
+    state = beginBufferedAttack(state, afterHook, false);
+    expect(state.attack).toBe("jab");
+
+    state = noteAttackPress(tickCombat(state, afterHook + 400), afterHook + 400);
+    state = beginBufferedAttack(state, afterHook + 400, false, true);
     expect(state.attack).toBe("kick");
     expect(attackVelocity("kick", "startup")).toBeLessThan(attackVelocity("kick", "active"));
     expect(attackVelocity("jab", "startup")).toBeGreaterThan(0);

@@ -24,6 +24,7 @@ export class PlayScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private jumpKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
+  private kickKey!: Phaser.Input.Keyboard.Key;
   private hitKey!: Phaser.Input.Keyboard.Key;
   private debugKey!: Phaser.Input.Keyboard.Key;
   private surfaces: { block: Phaser.GameObjects.Rectangle; droppable: boolean }[] = [];
@@ -91,11 +92,13 @@ export class PlayScene extends Phaser.Scene {
     this.cursors = keyboard.createCursorKeys();
     this.jumpKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.attackKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+    this.kickKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     this.hitKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     keyboard.addCapture([
       Phaser.Input.Keyboard.KeyCodes.SPACE,
       Phaser.Input.Keyboard.KeyCodes.Z,
+      Phaser.Input.Keyboard.KeyCodes.C,
       Phaser.Input.Keyboard.KeyCodes.X,
       Phaser.Input.Keyboard.KeyCodes.H,
       Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -109,7 +112,7 @@ export class PlayScene extends Phaser.Scene {
     });
 
     this.add
-      .rectangle(12, 12, 680, 128, 0x000000, 0.55)
+      .rectangle(12, 12, 720, 148, 0x000000, 0.55)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(20);
@@ -121,7 +124,7 @@ export class PlayScene extends Phaser.Scene {
     };
 
     this.add
-      .text(24, 20, "Project：獸王覺醒 Beast Awakening", labelStyle)
+      .text(24, 20, "Project：獸王覺醒 Beast Awakening — 火柴人動作", labelStyle)
       .setScrollFactor(0)
       .setDepth(21);
 
@@ -135,7 +138,7 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 76, "方向鍵移動　空白跳躍　↓ 蹲下　↓+空白 落到下一層", {
+      .text(24, 76, "←→ 行走　空白 跳躍　↓ 蹲下　↓+空白 落到下一層", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "14px",
         color: "#c5cad3",
@@ -144,10 +147,19 @@ export class PlayScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 98, "Z 三段拳腳（↓+Z 掃腿）　H 顯示判定框　X 受擊", {
+      .text(24, 98, "Z 站立拳（連按 jab→hook｜↓+Z 掃腿）　C 站立踢　H 判定框　X 受擊", {
         fontFamily: labelStyle.fontFamily,
         fontSize: "14px",
         color: "#c5cad3",
+      })
+      .setScrollFactor(0)
+      .setDepth(21);
+
+    this.add
+      .text(24, 120, "命中敵人會顯示血條，並有閃光／震動／擊退反應", {
+        fontFamily: labelStyle.fontFamily,
+        fontSize: "13px",
+        color: "#9eb0d6",
       })
       .setScrollFactor(0)
       .setDepth(21);
@@ -342,6 +354,7 @@ export class PlayScene extends Phaser.Scene {
       jumpPressed: Phaser.Input.Keyboard.JustDown(this.jumpKey),
       jumpReleased: Phaser.Input.Keyboard.JustUp(this.jumpKey),
       attackPressed: Phaser.Input.Keyboard.JustDown(this.attackKey),
+      kickPressed: Phaser.Input.Keyboard.JustDown(this.kickKey),
       hitPressed: Phaser.Input.Keyboard.JustDown(this.hitKey),
     };
   }
