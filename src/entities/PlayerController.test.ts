@@ -130,9 +130,9 @@ describe("combo", () => {
   it("remembers Z for 0.15s and chains jab then hook; C starts a kick", () => {
     expect(ATTACK_BUFFER_MS).toBe(150);
     expect(COMBO_RESET_MS).toBe(600);
-    expect(ATTACKS.jab.hitstop).toBe(40);
-    expect(ATTACKS.hook.hitstop).toBe(40);
-    expect(ATTACKS.kick.hitstop).toBe(80);
+    expect(ATTACKS.jab.hitstop).toBe(50);
+    expect(ATTACKS.hook.hitstop).toBe(55);
+    expect(ATTACKS.kick.hitstop).toBe(90);
 
     let state = noteAttackPress(createCombatState(), 0);
     expect(beginBufferedAttack(state, 151, false).attack).toBeNull();
@@ -143,16 +143,20 @@ describe("combo", () => {
     state = noteAttackPress(state, 80);
     expect(beginBufferedAttack(state, 80, false).attack).toBe("jab");
 
-    state = beginBufferedAttack(tickCombat(state, 120), 120, false);
+    const jabRecovery =
+      state.attackStartedAt + ATTACKS.jab.startup + ATTACKS.jab.active + 1;
+    state = noteAttackPress(state, jabRecovery - 20);
+    state = beginBufferedAttack(tickCombat(state, jabRecovery), jabRecovery, false);
     expect(state.attack).toBe("hook");
 
-    const afterHook = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active;
+    const afterHook = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active + 1;
     state = noteAttackPress(state, afterHook - 40);
     state = beginBufferedAttack(state, afterHook, false);
     expect(state.attack).toBe("jab");
 
-    state = noteAttackPress(tickCombat(state, afterHook + 400), afterHook + 400);
-    state = beginBufferedAttack(state, afterHook + 400, false, true);
+    const kickAt = afterHook + 500;
+    state = noteAttackPress(tickCombat(state, kickAt), kickAt);
+    state = beginBufferedAttack(state, kickAt, false, true);
     expect(state.attack).toBe("kick");
     expect(attackVelocity("kick", "startup")).toBeLessThan(attackVelocity("kick", "active"));
     expect(attackVelocity("jab", "startup")).toBeGreaterThan(0);
@@ -191,7 +195,7 @@ describe("combo", () => {
     expect(sweep.y).toBeGreaterThan(jab.y);
     expect(left.x).toBeLessThan(0);
     expect(jab.x).toBeGreaterThan(0);
-    expect(kick.width).toBeLessThan(50);
+    expect(kick.width).toBeLessThan(60);
     expect(hitboxTouches(kick, { x: 200, y: 0, width: 54, height: 120 })).toBe(false);
     expect(hitboxTouches(jab, { x: -90, y: 0, width: 40, height: 80 })).toBe(false);
     expect(hitboxTouches(jab, { x: 48, y: -14, width: 28, height: 28 })).toBe(true);

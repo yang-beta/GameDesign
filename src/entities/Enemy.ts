@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import type { EnemySpawn } from "../data/MapData";
 import { EnemyHealthBar } from "./EnemyHealthBar";
 
-export const ENEMY_WIDTH = 34;
-export const ENEMY_HEIGHT = 44;
+export const ENEMY_WIDTH = 40;
+export const ENEMY_HEIGHT = 96;
 export const ENEMY_SPEED = 70;
 export const ENEMY_HP = 5;
 const ENEMY_COLOR = 0xe0863a;
