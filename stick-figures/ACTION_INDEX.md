@@ -34,14 +34,21 @@
 
 ---
 
-## 本次轉換範圍
+## 轉換進度
 
-- **僅動作 01：待機（Idle）**
-- 輸出目錄：`stick-figures/01-idle/`
-  - `frame_01.png` … `frame_08.png`：各幀白底火柴人
-  - `strip.png`：橫向總覽
-  - `preview.gif`：循環預覽
-  - `comparison.png`：原圖幀 vs 火柴人對照
-  - `joints.json`：各幀關節座標
+### 共通規格
+- 白底火柴人；肩寬／跨寬橫槓；關節節點
+- **多邊形手掌／腳板**；尖端＝手指／腳趾朝向
 
-其餘動作請確認待機火柴人無誤後，再指示是否接續。
+### 01 待機 Idle — 已套用循環
+- `01-idle/preview.gif`、`applied_loop.gif`：8 幀 ping-pong 呼吸循環
+- `frame_*.png`、`strip.png`、`comparison.png`、`joints.json`
+
+### 02–04 — 連續動畫（檢視用，尚未套用）
+| 動作 | 目錄 | 預覽 |
+|------|------|------|
+| 02 行走 | `02-walk/` | `preview.gif` |
+| 03 站立拳 | `03-standing-punches/` | `preview.gif` |
+| 04 站立踢 | `04-standing-kicks/` | `preview.gif` |
+
+詳見 `REVIEW_01_04.md`。確認 02–04 後再套用。
