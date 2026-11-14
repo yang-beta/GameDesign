@@ -331,11 +331,14 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private touches(hit: Hitbox, target: Phaser.GameObjects.Rectangle): boolean {
+    const body = target.body as Phaser.Physics.Arcade.Body | null;
+    const width = body?.width ?? target.displayWidth;
+    const height = body?.height ?? target.displayHeight;
     return hitboxTouches(hit, {
       x: target.x,
       y: target.y,
-      width: target.displayWidth,
-      height: target.displayHeight,
+      width,
+      height,
     });
   }
 
