@@ -1,32 +1,37 @@
 import Phaser from "phaser";
+import {
+  PLAYER_DRAW_ORDER,
+  PLAYER_PARTS,
+  artBoneLength,
+  boneAngle,
+  distance,
+  type PlayerPartDef,
+  type PlayerPartId,
+} from "../art/playerParts";
+import {
+  MALE_RIG,
+  activeRig,
+  hipJoint,
+  standJoints,
+  type Joints,
+  type Point,
+} from "../data/BodyRig";
 import type { PlayerViewState } from "./PlayerController";
 
-export interface Point {
-  x: number;
-  y: number;
-}
+export type { Joints, Point };
 
-export interface Joints {
-  head: Point & { r: number };
-  shoulderL: Point;
-  shoulderR: Point;
-  elbowL: Point;
-  elbowR: Point;
-  fistL: Point;
-  fistR: Point;
-  chest: Point;
-  pelvis: Point;
-  kneeL: Point;
-  kneeR: Point;
-  footL: Point;
-  footR: Point;
-}
+/**
+ * Temporary skeleton-review mode: hide limb sheets so the rig can be judged alone.
+ * Flip back to true after side-view art is ready to reattach.
+ */
+export const SHOW_PLAYER_ART = false;
 
-const GI = 0x2457c2;
-const GI_LIGHT = 0x4d82ee;
-const OUTLINE = 0x101820;
-const SKIN = 0xf0c3a0;
-const SKIN_SHADE = 0xd59a70;
+/** Body paint scale from the torso bone; limbs keep body thickness but stretch to joint length. */
+const BODY_SCALE = 0.128;
+const LIMB_THICKNESS = BODY_SCALE * 0.7;
+const TIP_SCALE = BODY_SCALE * 0.78;
+/** Floor for limb length so guard-pose bones still read as connected meat. */
+const MIN_LIMB_LENGTH = BODY_SCALE * 0.42;
 
 export function buildJoints(view: PlayerViewState): Joints {
   if (view.pose === "crouch" || view.pose === "sweep") {
@@ -54,13 +59,23 @@ export function buildJoints(view: PlayerViewState): Joints {
 }
 
 export class PlayerRenderer {
-  private readonly puppet: Phaser.GameObjects.Graphics;
-  private readonly debug: Phaser.GameObjects.Graphics;
   private readonly root: Phaser.GameObjects.Container;
+  private readonly fx: Phaser.GameObjects.Graphics;
+  private readonly debug: Phaser.GameObjects.Graphics;
+  private readonly sprites: Record<PlayerPartId, Phaser.GameObjects.Image>;
 
   constructor(scene: Phaser.Scene) {
-    this.puppet = scene.add.graphics();
-    this.root = scene.add.container(0, 0, [this.puppet]);
+    this.fx = scene.add.graphics();
+    this.sprites = {} as Record<PlayerPartId, Phaser.GameObjects.Image>;
+    const layers: Phaser.GameObjects.GameObject[] = [this.fx];
+    for (const id of PLAYER_DRAW_ORDER) {
+      const def = PLAYER_PARTS[id];
+      const sprite = scene.add.image(0, 0, def.key);
+      sprite.setOrigin(def.pivot.x / def.width, def.pivot.y / def.height);
+      this.sprites[id] = sprite;
+      layers.push(sprite);
+    }
+    this.root = scene.add.container(0, 0, layers);
     this.root.setDepth(5);
     this.debug = scene.add.graphics();
     this.debug.setDepth(6);
@@ -70,138 +85,202 @@ export class PlayerRenderer {
     this.root.setPosition(view.x, view.y);
     this.root.setScale(view.facing, 1);
     this.root.setAlpha(view.flicker ? 0.35 : 1);
-    this.drawPuppet(buildJoints(view), view);
-    this.drawDebug(view);
-  }
-
-  private drawPuppet(joints: Joints, view: PlayerViewState): void {
-    const g = this.puppet;
-    g.clear();
-
-    if (view.pose === "hook" && view.attackPhase === "active") {
-      g.lineStyle(7, 0xffffff, 0.28);
-      g.beginPath();
-      g.arc(joints.shoulderR.x, joints.shoulderR.y + 6, 32, 1.15, -0.7, true);
-      g.strokePath();
-      g.lineStyle(3, 0xffffff, 0.9);
-      g.beginPath();
-      g.arc(joints.shoulderR.x, joints.shoulderR.y + 6, 26, 1.05, -0.55, true);
-      g.strokePath();
+    const joints = buildJoints(view);
+    if (SHOW_PLAYER_ART) {
+      this.layout(joints);
+      this.drawFx(joints, view);
+    } else {
+      this.hideArt();
+      this.fx.clear();
     }
-
-    const hips = {
-      left: { x: joints.pelvis.x - 8, y: joints.pelvis.y + 2 },
-      right: { x: joints.pelvis.x + 8, y: joints.pelvis.y + 2 },
-    };
-
-    limb(g, hips.right, joints.kneeR, 16, OUTLINE);
-    limb(g, joints.kneeR, joints.footR, 13, OUTLINE);
-    limb(g, hips.right, joints.kneeR, 11, GI);
-    limb(g, joints.kneeR, joints.footR, 8, GI_LIGHT);
-    limb(g, hips.left, joints.kneeL, 16, OUTLINE);
-    limb(g, joints.kneeL, joints.footL, 13, OUTLINE);
-    limb(g, hips.left, joints.kneeL, 11, GI);
-    limb(g, joints.kneeL, joints.footL, 8, GI_LIGHT);
-
-    limb(g, joints.shoulderR, joints.elbowR, 12, OUTLINE);
-    limb(g, joints.elbowR, joints.fistR, 10, OUTLINE);
-    limb(g, joints.shoulderR, joints.elbowR, 8, GI);
-    limb(g, joints.elbowR, joints.fistR, 7, GI_LIGHT);
-
-    const torsoY = (joints.chest.y + joints.pelvis.y) / 2;
-    g.fillStyle(OUTLINE, 1);
-    g.fillEllipse(joints.chest.x, torsoY, 34, 56);
-    g.fillStyle(GI, 1);
-    g.fillEllipse(joints.chest.x, torsoY, 28, 48);
-    g.fillStyle(GI_LIGHT, 1);
-    g.fillEllipse(joints.chest.x + 4, joints.chest.y + 6, 12, 20);
-
-    dot(g, joints.pelvis, 9, GI, OUTLINE);
-    dot(g, joints.shoulderL, 7, GI_LIGHT, OUTLINE);
-    dot(g, joints.shoulderR, 7, GI_LIGHT, OUTLINE);
-
-    limb(g, joints.shoulderL, joints.elbowL, 12, OUTLINE);
-    limb(g, joints.elbowL, joints.fistL, 10, OUTLINE);
-    limb(g, joints.shoulderL, joints.elbowL, 8, GI);
-    limb(g, joints.elbowL, joints.fistL, 7, GI_LIGHT);
-
-    g.fillStyle(OUTLINE, 1);
-    g.fillCircle(joints.head.x, joints.head.y, joints.head.r + 2);
-    g.fillStyle(SKIN, 1);
-    g.fillCircle(joints.head.x, joints.head.y, joints.head.r);
-    g.fillStyle(SKIN_SHADE, 1);
-    g.fillEllipse(joints.head.x + 4, joints.head.y + 2, joints.head.r, joints.head.r * 0.85);
-    g.fillStyle(0x1b2433, 1);
-    g.fillCircle(joints.head.x + joints.head.r * 0.35, joints.head.y - 1, 1.6);
-
-    fist(g, joints.fistR);
-    fist(g, joints.fistL);
-    footCap(g, joints.footL);
-    footCap(g, joints.footR);
+    this.drawSkeleton(view, joints);
   }
 
-  private drawDebug(view: PlayerViewState): void {
+  private hideArt(): void {
+    for (const id of PLAYER_DRAW_ORDER) {
+      this.sprites[id].setVisible(false);
+    }
+  }
+
+  private layout(joints: Joints): void {
+    for (const id of PLAYER_DRAW_ORDER) {
+      this.sprites[id].setVisible(true);
+    }
+    // Shins/feet first. Thighs come from the pelvis art, so skip separate thigh sheets
+    // to avoid a double-leg seam through the middle of the silhouette.
+    this.sprites.thighR.setVisible(false);
+    this.sprites.thighL.setVisible(false);
+    this.stretch(PLAYER_PARTS.shinR, joints.kneeR, joints.footR);
+    this.tip(PLAYER_PARTS.footR, joints.footR, joints.kneeR, joints.footR);
+    this.stretch(PLAYER_PARTS.shinL, joints.kneeL, joints.footL);
+    this.tip(PLAYER_PARTS.footL, joints.footL, joints.kneeL, joints.footL);
+
+    // Core — shared scale; seat head slightly into the collar so the neck seam overlaps.
+    this.place(PLAYER_PARTS.pelvis, joints.pelvis, 0, BODY_SCALE * 0.9);
+    this.place(
+      PLAYER_PARTS.torso,
+      joints.pelvis,
+      boneAngle(joints.pelvis, joints.chest, "up"),
+      BODY_SCALE,
+    );
+
+    const collar = pointAlong(
+      joints.pelvis,
+      joints.chest,
+      artBoneLength(PLAYER_PARTS.torso) * BODY_SCALE * 0.9,
+    );
+    this.place(
+      PLAYER_PARTS.head,
+      collar,
+      boneAngle(collar, { x: collar.x + (joints.head.x - joints.chest.x) * 0.35, y: collar.y - 18 }, "up"),
+      BODY_SCALE,
+    );
+
+    // Arms last (in front). Thickness stays readable; length follows the strike.
+    this.stretch(PLAYER_PARTS.upperArmR, joints.shoulderR, joints.elbowR);
+    this.stretch(PLAYER_PARTS.forearmR, joints.elbowR, joints.fistR);
+    this.tip(PLAYER_PARTS.fistR, joints.fistR, joints.elbowR, joints.fistR);
+
+    this.stretch(PLAYER_PARTS.upperArmL, joints.shoulderL, joints.elbowL);
+    this.stretch(PLAYER_PARTS.forearmL, joints.elbowL, joints.fistL);
+    this.tip(PLAYER_PARTS.fistL, joints.fistL, joints.elbowL, joints.fistL);
+  }
+
+  private stretch(def: PlayerPartDef, from: Point, to: Point): void {
+    const span = Math.max(distance(from, to), 6);
+    const lengthScale = Math.max(MIN_LIMB_LENGTH, span / artBoneLength(def));
+    const sprite = this.sprites[def.id];
+    sprite.setPosition(from.x, from.y);
+    sprite.setRotation(boneAngle(from, to, def.axis));
+    // Local Y is the bone axis in art; keep fighters thick even on short guard bones.
+    sprite.setScale(LIMB_THICKNESS, lengthScale);
+  }
+
+  private tip(def: PlayerPartDef, at: Point, from: Point, to: Point): void {
+    const sprite = this.sprites[def.id];
+    sprite.setPosition(at.x, at.y);
+    sprite.setRotation(boneAngle(from, to, def.axis));
+    sprite.setScale(TIP_SCALE);
+  }
+
+  private place(def: PlayerPartDef, at: Point, rotation: number, scale: number): void {
+    const sprite = this.sprites[def.id];
+    sprite.setPosition(at.x, at.y);
+    sprite.setRotation(rotation);
+    sprite.setScale(scale);
+  }
+
+  private drawFx(joints: Joints, view: PlayerViewState): void {
+    const g = this.fx;
+    g.clear();
+    if (view.pose !== "hook" || view.attackPhase !== "active") {
+      return;
+    }
+    g.lineStyle(7, 0xffffff, 0.28);
+    g.beginPath();
+    g.arc(joints.shoulderR.x, joints.shoulderR.y + 6, 32, 1.15, -0.7, true);
+    g.strokePath();
+    g.lineStyle(3, 0xffffff, 0.9);
+    g.beginPath();
+    g.arc(joints.shoulderR.x, joints.shoulderR.y + 6, 26, 1.05, -0.55, true);
+    g.strokePath();
+  }
+
+  private drawSkeleton(view: PlayerViewState, joints: Joints): void {
     const g = this.debug;
     g.clear();
-    if (!view.showHitboxes) {
-      return;
+
+    if (view.showHitboxes) {
+      const box = view.hurtbox;
+      g.fillStyle(0x3c8dff, 0.22);
+      g.fillRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+      g.lineStyle(1, 0x8ec2ff, 0.85);
+      g.strokeRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+      if (view.hitbox) {
+        const hit = view.hitbox;
+        g.fillStyle(0xff2a2a, 0.4);
+        g.fillRect(hit.x - hit.width / 2, hit.y - hit.height / 2, hit.width, hit.height);
+      }
     }
 
-    const box = view.hurtbox;
-    g.fillStyle(0x3c8dff, 0.28);
-    g.fillRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
-    g.lineStyle(1, 0x8ec2ff, 0.85);
-    g.strokeRect(view.x - box.width / 2, view.y - box.height / 2, box.width, box.height);
+    const fx = (p: Point) => view.x + p.x * view.facing;
+    const fy = (p: Point) => view.y + p.y;
+    const hipL = hipJoint(activeRig(), "left");
+    const hipR = hipJoint(activeRig(), "right");
+    hipL.y = joints.pelvis.y + 3;
+    hipR.y = joints.pelvis.y + 3;
 
-    if (!view.hitbox) {
-      return;
+    // Always-on stick figure while art is detached.
+    g.lineStyle(3, 0xe8f0ff, 0.95);
+    const links: [Point, Point][] = [
+      [joints.shoulderL, joints.elbowL],
+      [joints.elbowL, joints.fistL],
+      [joints.shoulderR, joints.elbowR],
+      [joints.elbowR, joints.fistR],
+      [joints.shoulderL, joints.shoulderR],
+      [joints.chest, joints.pelvis],
+      [hipL, joints.kneeL],
+      [joints.kneeL, joints.footL],
+      [hipR, joints.kneeR],
+      [joints.kneeR, joints.footR],
+    ];
+    for (const [a, b] of links) {
+      g.beginPath();
+      g.moveTo(fx(a), fy(a));
+      g.lineTo(fx(b), fy(b));
+      g.strokePath();
     }
-    const hit = view.hitbox;
-    g.fillStyle(0xff2a2a, 0.4);
-    g.fillRect(hit.x - hit.width / 2, hit.y - hit.height / 2, hit.width, hit.height);
+
+    g.lineStyle(2, 0x9eb7ff, 0.9);
+    g.strokeCircle(fx(joints.head), fy(joints.head), joints.head.r);
+    g.fillStyle(0xfff36a, 1);
+    for (const p of [
+      joints.shoulderL,
+      joints.shoulderR,
+      joints.elbowL,
+      joints.elbowR,
+      joints.fistL,
+      joints.fistR,
+      joints.chest,
+      joints.pelvis,
+      hipL,
+      hipR,
+      joints.kneeL,
+      joints.kneeR,
+      joints.footL,
+      joints.footR,
+    ]) {
+      g.fillCircle(fx(p), fy(p), 3);
+    }
   }
 }
 
 function guardPose(breath: number): Joints {
-  const lift = breath * 1.5;
-  return {
-    head: { x: 0, y: -50 + lift, r: 13 },
-    shoulderL: { x: -14, y: -28 + lift },
-    shoulderR: { x: 12, y: -26 + lift },
-    elbowL: { x: -18, y: -8 },
-    elbowR: { x: 18, y: -4 },
-    fistL: { x: -8, y: -16 },
-    fistR: { x: 10, y: -12 },
-    chest: { x: 0, y: -16 + lift * 0.5 },
-    pelvis: { x: 0, y: 16 },
-    kneeL: { x: -8, y: 40 },
-    kneeR: { x: 8, y: 40 },
-    footL: { x: -9, y: 58 },
-    footR: { x: 10, y: 58 },
-  };
+  return standJoints(activeRig(), breath);
 }
 
 function crouchPose(view: PlayerViewState): Joints {
+  const rig = activeRig();
   const joints: Joints = {
-    head: { x: 2, y: -20, r: 12 },
-    shoulderL: { x: -12, y: -6 },
-    shoulderR: { x: 12, y: -4 },
-    elbowL: { x: -16, y: -16 },
-    elbowR: { x: 16, y: -14 },
-    fistL: { x: -6, y: -22 },
-    fistR: { x: 8, y: -20 },
-    chest: { x: 2, y: 2 },
-    pelvis: { x: 0, y: 14 },
-    kneeL: { x: -16, y: 18 },
-    kneeR: { x: 18, y: 20 },
-    footL: { x: -16, y: 30 },
-    footR: { x: 14, y: 30 },
+    head: { x: 2, y: -22, r: rig.headR - 1 },
+    shoulderL: { x: -rig.shoulderHalf + 2, y: -8 },
+    shoulderR: { x: rig.shoulderHalf - 1, y: -6 },
+    elbowL: { x: -rig.shoulderHalf - 2, y: -18 },
+    elbowR: { x: rig.shoulderHalf + 2, y: -16 },
+    fistL: { x: -4, y: -24 },
+    fistR: { x: 10, y: -22 },
+    chest: { x: 2, y: 0 },
+    pelvis: { x: 0, y: 18 },
+    kneeL: { x: -rig.hipHalf - 2, y: 22 },
+    kneeR: { x: rig.hipHalf + 4, y: 24 },
+    footL: { x: -rig.stanceHalf - 2, y: 30 },
+    footR: { x: rig.stanceHalf + 2, y: 30 },
   };
   if (view.pose === "sweep") {
     const t = view.attackAmount;
-    joints.kneeR = mix(joints.kneeR, { x: 28, y: 24 }, t);
-    joints.footR = mix(joints.footR, { x: 50, y: 30 }, t);
-    joints.kneeL = mix(joints.kneeL, { x: -18, y: 22 }, t);
+    joints.kneeR = mix(joints.kneeR, { x: 30, y: 24 }, t);
+    joints.footR = mix(joints.footR, { x: 52, y: 30 }, t);
+    joints.kneeL = mix(joints.kneeL, { x: -rig.hipHalf - 4, y: 24 }, t);
     joints.chest.x = -8 * t;
     joints.head.x = -3 * t;
     joints.pelvis.x = -4 * t;
@@ -212,109 +291,162 @@ function crouchPose(view: PlayerViewState): Joints {
 }
 
 function hitPose(): Joints {
+  const base = standJoints(MALE_RIG);
   return {
-    head: { x: -14, y: -46, r: 13 },
-    shoulderL: { x: -16, y: -24 },
-    shoulderR: { x: -6, y: -22 },
-    elbowL: { x: -24, y: -8 },
-    elbowR: { x: -18, y: -2 },
-    fistL: { x: -20, y: 4 },
-    fistR: { x: -12, y: 8 },
-    chest: { x: -10, y: -8 },
-    pelvis: { x: 2, y: 18 },
-    kneeL: { x: -6, y: 40 },
-    kneeR: { x: 12, y: 38 },
-    footL: { x: -4, y: 58 },
-    footR: { x: 14, y: 56 },
+    ...base,
+    head: { x: -12, y: base.head.y + 2, r: base.head.r },
+    shoulderL: { x: base.shoulderL.x - 4, y: base.shoulderL.y + 4 },
+    shoulderR: { x: base.shoulderR.x - 10, y: base.shoulderR.y + 4 },
+    elbowL: { x: base.elbowL.x - 8, y: base.elbowL.y + 8 },
+    elbowR: { x: base.elbowR.x - 14, y: base.elbowR.y + 10 },
+    fistL: { x: -18, y: 2 },
+    fistR: { x: -10, y: 6 },
+    chest: { x: -8, y: base.chest.y + 4 },
+    pelvis: { x: 3, y: base.pelvis.y },
   };
 }
 
+/**
+ * Casual stroll from `reference/螢幕錄影 2026-11-13 17.33.52.mp4`:
+ * upright torso (~0–3° lean), opposite arm/leg, bob peaks at passing,
+ * heel-ish contact with a modest passing lift — not a fighting dash.
+ */
 function applyRun(joints: Joints, cycle: number): void {
-  const swing = Math.sin(cycle);
-  joints.chest.x += 7;
-  joints.shoulderL.x += 8;
-  joints.shoulderR.x += 8;
-  joints.head.x += 6;
-  joints.elbowL.x += -swing * 12;
-  joints.elbowR.x += swing * 12;
-  joints.fistL.y += swing * 10;
-  joints.fistR.y += -swing * 10;
-  joints.kneeL.y += swing * 8;
-  joints.kneeR.y -= swing * 8;
-  joints.footL.x += swing * 10;
-  joints.footR.x -= swing * 10;
+  const rig = activeRig();
+  const phase = cycle * 0.82;
+  const swing = Math.sin(phase);
+  const pass = Math.cos(phase);
+  const bob = (1 - Math.abs(swing)) * 3.2;
+
+  // Drop the combat guard into a relaxed walk arm set, then swing.
+  joints.head.x += 0.5;
+  joints.chest.x += 1;
+  joints.pelvis.x += 0.5;
+  joints.head.y -= bob;
+  joints.chest.y -= bob * 0.85;
+  joints.shoulderL.y -= bob * 0.85;
+  joints.shoulderR.y -= bob * 0.85;
+  joints.pelvis.y -= bob * 0.75;
+
+  const hipL = hipJoint(rig, "left");
+  const hipR = hipJoint(rig, "right");
+  hipL.y = joints.pelvis.y + 3;
+  hipR.y = joints.pelvis.y + 3;
+
+  const stride = 15;
+  const stepLift = 7;
+  joints.footL = {
+    x: swing * stride,
+    y: rig.footY - Math.max(0, pass) * stepLift,
+  };
+  joints.footR = {
+    x: -swing * stride,
+    y: rig.footY - Math.max(0, -pass) * stepLift,
+  };
+
+  const bendL = Math.max(0, pass) * 10;
+  const bendR = Math.max(0, -pass) * 10;
+  joints.kneeL = {
+    x: hipL.x * 0.35 + joints.footL.x * 0.65,
+    y: (hipL.y + joints.footL.y) * 0.5 - bendL,
+  };
+  joints.kneeR = {
+    x: hipR.x * 0.35 + joints.footR.x * 0.65,
+    y: (hipR.y + joints.footR.y) * 0.5 - bendR,
+  };
+
+  // Arms opposite the legs, amp ~±30°, elbows keep a soft bend.
+  const arm = 12;
+  joints.elbowL = {
+    x: joints.shoulderL.x - 2 - swing * 4,
+    y: joints.shoulderL.y + 13 + Math.abs(swing) * 2,
+  };
+  joints.elbowR = {
+    x: joints.shoulderR.x + 2 + swing * 4,
+    y: joints.shoulderR.y + 13 + Math.abs(swing) * 2,
+  };
+  joints.fistL = {
+    x: joints.elbowL.x - swing * arm,
+    y: joints.elbowL.y + 11 - Math.abs(swing) * 2,
+  };
+  joints.fistR = {
+    x: joints.elbowR.x + swing * arm,
+    y: joints.elbowR.y + 11 - Math.abs(swing) * 2,
+  };
 }
 
 function applyTuck(joints: Joints): void {
-  joints.kneeL = { x: -10, y: 4 };
-  joints.kneeR = { x: 12, y: 2 };
-  joints.footL = { x: -16, y: -8 };
-  joints.footR = { x: 18, y: -6 };
-  joints.elbowL.y -= 6;
-  joints.elbowR.y -= 6;
+  joints.kneeL = { x: -12, y: 6 };
+  joints.kneeR = { x: 14, y: 4 };
+  joints.footL = { x: -18, y: -6 };
+  joints.footR = { x: 20, y: -4 };
+  joints.elbowL.y -= 8;
+  joints.elbowR.y -= 8;
 }
 
 function applyFall(joints: Joints): void {
-  joints.kneeL = { x: -7, y: 34 };
-  joints.kneeR = { x: 8, y: 36 };
-  joints.footL = { x: -6, y: 62 };
-  joints.footR = { x: 8, y: 62 };
-  joints.elbowL = { x: -20, y: -20 };
-  joints.elbowR = { x: 20, y: -18 };
-  joints.fistL = { x: -16, y: -34 };
-  joints.fistR = { x: 16, y: -32 };
+  const rig = activeRig();
+  joints.kneeL = { x: -rig.stanceHalf, y: rig.kneeY - 4 };
+  joints.kneeR = { x: rig.stanceHalf, y: rig.kneeY - 2 };
+  joints.footL = { x: -rig.stanceHalf + 1, y: Math.min(62, rig.footY + 2) };
+  joints.footR = { x: rig.stanceHalf, y: Math.min(62, rig.footY + 2) };
+  joints.elbowL = { x: joints.shoulderL.x - 6, y: joints.shoulderL.y - 8 };
+  joints.elbowR = { x: joints.shoulderR.x + 6, y: joints.shoulderR.y - 6 };
+  joints.fistL = { x: joints.elbowL.x - 2, y: joints.elbowL.y - 14 };
+  joints.fistR = { x: joints.elbowR.x + 2, y: joints.elbowR.y - 12 };
 }
 
 function applyJab(joints: Joints, amount: number): void {
-  joints.fistL = mix(joints.fistL, { x: 42, y: -14 }, amount);
-  joints.elbowL = mix(joints.elbowL, { x: 22, y: -14 }, amount);
-  joints.shoulderL = mix(joints.shoulderL, { x: 2, y: -24 }, amount * 0.7);
-  joints.chest.x += 8 * amount;
+  // Lead with character-left (far) fist; torso rotates into the punch (male V still reads).
+  joints.fistL = mix(joints.fistL, { x: 48, y: -16 }, amount);
+  joints.elbowL = mix(joints.elbowL, { x: 26, y: -16 }, amount);
+  joints.shoulderL = mix(joints.shoulderL, { x: 4, y: joints.shoulderL.y + 4 }, amount * 0.75);
+  joints.chest.x += 9 * amount;
   joints.head.x += 3 * amount;
-  joints.pelvis.x += 5 * amount;
-  joints.shoulderR.x -= 4 * amount;
-  joints.elbowR = mix(joints.elbowR, { x: 8, y: -2 }, amount);
-  joints.fistR = mix(joints.fistR, { x: -2, y: -8 }, amount);
+  joints.pelvis.x += 4 * amount;
+  joints.shoulderR.x -= 5 * amount;
+  joints.elbowR = mix(joints.elbowR, { x: joints.shoulderR.x - 2, y: joints.chest.y + 8 }, amount);
+  joints.fistR = mix(joints.fistR, { x: -4, y: joints.chest.y + 2 }, amount);
   joints.kneeL.x += 4 * amount;
   joints.footR.x -= 3 * amount;
 }
 
 function applyHook(joints: Joints, amount: number): void {
   const angle = 1.15 - amount * 1.9;
-  const reach = 16 + amount * 20;
-  joints.elbowR = mix(joints.elbowR, { x: 16, y: -20 }, amount);
+  const reach = 18 + amount * 22;
+  joints.elbowR = mix(joints.elbowR, { x: 18, y: -22 }, amount);
   joints.fistR = {
-    x: 8 + Math.cos(angle) * reach,
-    y: -6 + Math.sin(angle) * reach,
+    x: 10 + Math.cos(angle) * reach,
+    y: -8 + Math.sin(angle) * reach,
   };
-  joints.shoulderR.y -= 6 * amount;
-  joints.chest.x += 7 * amount;
+  joints.shoulderR.y -= 7 * amount;
+  joints.chest.x += 8 * amount;
   joints.chest.y -= 4 * amount;
   joints.head.x += 2 * amount;
-  joints.pelvis.x += 6 * amount;
-  joints.fistL = mix(joints.fistL, { x: -16, y: -10 }, amount * 0.8);
-  joints.elbowL.x -= 4 * amount;
+  joints.pelvis.x += 5 * amount;
+  joints.fistL = mix(joints.fistL, { x: -16, y: -12 }, amount * 0.8);
+  joints.elbowL.x -= 5 * amount;
   joints.kneeR.x += 3 * amount;
   joints.footL.x -= 2 * amount;
 }
 
 function applyKick(joints: Joints, amount: number): void {
-  const chamberKnee = { x: 18, y: 2 };
-  const chamberFoot = { x: 14, y: -10 };
-  const extendKnee = { x: 30, y: -4 };
-  const extendFoot = { x: 58, y: -8 };
+  const chamberKnee = { x: 20, y: 4 };
+  const chamberFoot = { x: 16, y: -8 };
+  const kickKnee = { x: 34, y: -2 };
+  const kickFoot = { x: 62, y: -6 };
   const chamber = amount < 0.2 ? amount / 0.2 : 1;
   const strike = amount < 0.2 ? 0 : (amount - 0.2) / 0.8;
   const weight = Math.max(chamber, strike);
-  joints.kneeR = mix(joints.kneeR, mix(chamberKnee, extendKnee, strike), weight);
-  joints.footR = mix(joints.footR, mix(chamberFoot, extendFoot, strike), weight);
-  joints.chest.x -= 8 * strike;
+  joints.kneeR = mix(joints.kneeR, mix(chamberKnee, kickKnee, strike), weight);
+  joints.footR = mix(joints.footR, mix(chamberFoot, kickFoot, strike), weight);
+  joints.chest.x -= 9 * strike;
   joints.head.x -= 3 * strike;
-  joints.pelvis.x -= 3 * strike;
+  joints.pelvis.x -= 4 * strike;
   joints.shoulderL.x -= 6 * strike;
   joints.shoulderR.x -= 2 * strike;
-  joints.elbowL = mix(joints.elbowL, { x: -24, y: -16 }, strike);
-  joints.fistL = mix(joints.fistL, { x: -20, y: -24 }, strike);
+  joints.elbowL = mix(joints.elbowL, { x: -26, y: -18 }, strike);
+  joints.fistL = mix(joints.fistL, { x: -22, y: -26 }, strike);
   joints.kneeL.y -= 8 * strike;
   joints.footL.x -= 2 * strike;
 }
@@ -323,48 +455,12 @@ function mix(a: Point, b: Point, t: number): Point {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-function limb(
-  g: Phaser.GameObjects.Graphics,
-  from: Point,
-  to: Point,
-  width: number,
-  color: number,
-): void {
-  g.lineStyle(width, color, 1);
-  g.beginPath();
-  g.moveTo(from.x, from.y);
-  g.lineTo(to.x, to.y);
-  g.strokePath();
-  g.fillStyle(color, 1);
-  g.fillCircle(from.x, from.y, width * 0.42);
-  g.fillCircle(to.x, to.y, width * 0.42);
-}
-
-function dot(
-  g: Phaser.GameObjects.Graphics,
-  point: Point,
-  radius: number,
-  fill: number,
-  line: number,
-): void {
-  g.fillStyle(line, 1);
-  g.fillCircle(point.x, point.y, radius + 2);
-  g.fillStyle(fill, 1);
-  g.fillCircle(point.x, point.y, radius);
-}
-
-function fist(g: Phaser.GameObjects.Graphics, point: Point): void {
-  g.fillStyle(OUTLINE, 1);
-  g.fillCircle(point.x, point.y, 7);
-  g.fillStyle(SKIN, 1);
-  g.fillCircle(point.x, point.y, 5.5);
-  g.fillStyle(0xf7f7f7, 1);
-  g.fillRect(point.x - 4, point.y - 1.5, 8, 3);
-}
-
-function footCap(g: Phaser.GameObjects.Graphics, point: Point): void {
-  g.fillStyle(OUTLINE, 1);
-  g.fillEllipse(point.x + 4, point.y + 2, 16, 8);
-  g.fillStyle(0x18283f, 1);
-  g.fillEllipse(point.x + 4, point.y + 1, 12, 5);
+function pointAlong(from: Point, to: Point, length: number): Point {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  return {
+    x: from.x + (dx / dist) * length,
+    y: from.y + (dy / dist) * length,
+  };
 }

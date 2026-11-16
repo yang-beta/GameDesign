@@ -213,6 +213,10 @@ describe("hurtbox and puppet", () => {
     expect(idle.head.y - idle.head.r).toBeGreaterThanOrEqual(-64);
     expect(idle.footL.y).toBeLessThanOrEqual(64);
     expect(idle.footL.y).toBeGreaterThan(50);
+    // Male V-taper: shoulders wider than the stance/hips.
+    expect(Math.abs(idle.shoulderR.x - idle.shoulderL.x)).toBeGreaterThan(
+      Math.abs(idle.kneeR.x - idle.kneeL.x),
+    );
     expect(jab.fistL.x).toBeGreaterThan(idle.fistL.x + 20);
     expect(jab.chest.x).toBeGreaterThan(idle.chest.x);
     expect(jab.head.x).toBeLessThan(jab.chest.x);
@@ -228,6 +232,20 @@ describe("hurtbox and puppet", () => {
     expect(describePose("kick")).toBe("重踢");
     expect(describePose("sweep")).toBe("下段掃腿");
     expect(describePose("hit")).toBe("受擊");
+    expect(describePose("run")).toBe("走路");
+  });
+
+  it("walks with opposite limbs and little forward lean versus idle", () => {
+    const idle = buildJoints(view("idle"));
+    const contact = buildJoints({ ...view("run"), cycle: Math.PI / 2 });
+    const passing = buildJoints({ ...view("run"), cycle: 0 });
+
+    expect(contact.footL.x).toBeGreaterThan(8);
+    expect(contact.footR.x).toBeLessThan(-8);
+    expect(Math.abs(passing.footL.x - passing.footR.x)).toBeLessThan(
+      Math.abs(contact.footL.x - contact.footR.x),
+    );
+    expect(contact.chest.x - idle.chest.x).toBeLessThan(3);
   });
 });
 

@@ -374,7 +374,7 @@ export function describePose(pose: Pose): string {
     case "idle":
       return "站立";
     case "run":
-      return "跑步";
+      return "走路";
     case "jump":
       return "跳躍中";
     case "fall":
@@ -697,7 +697,7 @@ export class PlayerController {
       facing: this.facing,
       pose,
       breath: Math.sin(this.elapsed / 260),
-      cycle: this.elapsed / 140,
+      cycle: this.elapsed / 170,
       attackPhase: timing?.phase ?? "done",
       attackAmount: timing?.amount ?? 0,
       showHitboxes: this.showHitboxes,
