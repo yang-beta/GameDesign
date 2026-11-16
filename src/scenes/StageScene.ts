@@ -1,11 +1,18 @@
 import Phaser from "phaser";
-import { STAGE_HAZARDS, STAGE_SECRETS, TOXIC_DAMAGE, type HazardDef } from "../data/Interactables";
-import { type StageDef, type StageId, stageById } from "../data/StageData";
+import {
+  STAGE_HAZARDS,
+  STAGE_LIFTS,
+  STAGE_SECRETS,
+  TOXIC_DAMAGE,
+  type HazardDef,
+} from "../data/Interactables";
+import { type StageDef, type StageId, stageBounds, stageById } from "../data/StageData";
 import { toRect } from "../data/MapData";
 import { HitSpark } from "../effects/HitSpark";
 import { Bullet } from "../entities/Bullet";
 import { Chest } from "../entities/Chest";
 import { Enemy, PATROL_CONTACT_DAMAGE } from "../entities/Enemy";
+import { MovingPlatform } from "../entities/MovingPlatform";
 import {
   GRAVITY_Y,
   hitboxTouches,
@@ -27,6 +34,7 @@ import { GameHud } from "../ui/GameHud";
 
 interface StageSceneData {
   stageId?: StageId;
+  spawn?: { x: number; surfaceY: number };
 }
 
 const PLAYER_HURT_COOLDOWN_MS = 700;
@@ -42,6 +50,8 @@ export class StageScene extends Phaser.Scene {
   private hazards: { def: HazardDef; zone: Phaser.GameObjects.Rectangle }[] = [];
   private secret: SecretWall | null = null;
   private chest: Chest | null = null;
+  private lifts: MovingPlatform[] = [];
+  private entrySpawn: { x: number; surfaceY: number } | null = null;
   private exits: { zone: Phaser.GameObjects.Rectangle; def: StageDef["exits"][number] }[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private jumpKey!: Phaser.Input.Keyboard.Key;
@@ -67,11 +77,13 @@ export class StageScene extends Phaser.Scene {
 
   init(data: StageSceneData): void {
     this.stage = stageById(data.stageId ?? "A");
+    this.entrySpawn = data.spawn ?? null;
     this.enemies = [];
     this.bullets = [];
     this.hazards = [];
     this.secret = null;
     this.chest = null;
+    this.lifts = [];
     this.exits = [];
     this.surfaces = [];
     this.dropping = null;
@@ -86,10 +98,11 @@ export class StageScene extends Phaser.Scene {
 
   create(): void {
     const stage = this.stage;
+    const bounds = stageBounds(stage);
     this.cameras.main.setBackgroundColor(stage.bg);
     this.physics.world.gravity.y = GRAVITY_Y;
-    this.physics.world.setBounds(0, 0, stage.width, stage.height);
-    this.cameras.main.setBounds(0, 0, stage.width, stage.height);
+    this.physics.world.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    this.cameras.main.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
 
     this.platforms = this.physics.add.staticGroup();
     for (const def of stage.platforms) {
@@ -99,10 +112,11 @@ export class StageScene extends Phaser.Scene {
       this.surfaces.push({ block, droppable: def.id !== "floor" && !def.id.startsWith("b-top") });
     }
 
+    const spawn = this.entrySpawn ?? stage.playerSpawn;
     this.player = new PlayerController(
       this,
-      stage.playerSpawn.x,
-      stage.playerSpawn.surfaceY - STAND_HEIGHT / 2 - 2,
+      spawn.x,
+      spawn.surfaceY - STAND_HEIGHT / 2 - 2,
     );
     this.puppet = new PlayerRenderer(this);
     this.sparks = new HitSpark(this);
@@ -116,6 +130,7 @@ export class StageScene extends Phaser.Scene {
 
     this.createHazards();
     this.createSecret();
+    this.createLifts();
     this.spawnEnemies();
     this.createExits();
     this.cameras.main.startFollow(this.player.bodyObject, true, 0.16, 0.16);
@@ -150,8 +165,8 @@ export class StageScene extends Phaser.Scene {
     this.updateCrouchAnchor();
     this.player.update(this.simTime, step, this.readInput());
     this.updateDrop();
-
     if (!frozen) {
+      this.tickLifts(step);
       this.tickEnemies(time);
       this.tickBullets(time);
       this.resolvePlayerHurt(time);
@@ -194,6 +209,30 @@ export class StageScene extends Phaser.Scene {
     this.secret = new SecretWall(this, def, this.platforms, this.surfaces);
     this.chest = new Chest(this, def.chest);
     this.chest.setVisible(false);
+  }
+
+  private createLifts(): void {
+    const defs = STAGE_LIFTS[this.stage.id] ?? [];
+    this.lifts = defs.map((def) => {
+      const lift = new MovingPlatform(this, def);
+      this.physics.add.collider(this.player.bodyObject, lift.block);
+      this.surfaces.push({ block: lift.block, droppable: false });
+      return lift;
+    });
+  }
+
+  private tickLifts(delta: number): void {
+    for (const lift of this.lifts) {
+      const dy = lift.tick(delta);
+      const body = this.player.physicsBody;
+      const onLift =
+        Math.abs(body.bottom - lift.surfaceTop()) <= 10 &&
+        Math.abs(this.player.bodyObject.x - lift.block.x) <= lift.def.width / 2 + body.width / 2;
+      if (onLift && dy !== 0) {
+        this.player.bodyObject.y += dy;
+        body.updateFromGameObject();
+      }
+    }
   }
 
   private spawnEnemies(): void {
@@ -399,22 +438,25 @@ export class StageScene extends Phaser.Scene {
         continue;
       }
       this.hud.pushEvent("移動到下一個場景", this.time.now, 1200);
-      this.goTo(exit.def.to);
+      this.goTo(exit.def);
       return;
     }
   }
 
-  private goTo(target: StageDef["exits"][number]["to"]): void {
+  private goTo(exit: StageDef["exits"][number]): void {
     if (this.transitioning) {
       return;
     }
     this.transitioning = true;
     markStageCleared();
-    if (target === "settle") {
+    if (exit.to === "settle") {
       this.scene.start("settle");
       return;
     }
-    this.scene.start("stage", { stageId: target });
+    this.scene.start("stage", {
+      stageId: exit.to,
+      spawn: exit.arrivalSpawn,
+    });
   }
 
   private checkRespawn(time: number): void {

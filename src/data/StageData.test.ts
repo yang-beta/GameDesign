@@ -4,11 +4,14 @@ import { STAGE_A, STAGE_B, STAGE_BOSS, STAGE_C, STAGES } from "./StageData";
 import { toRect } from "./MapData";
 
 describe("stage flow data", () => {
-  it("defines A→B→C→boss exits and distinct backgrounds", () => {
-    expect(STAGE_A.exits[0]?.to).toBe("B");
-    expect(STAGE_B.exits[0]?.to).toBe("C");
-    expect(STAGE_C.exits[0]?.to).toBe("boss");
-    expect(STAGE_BOSS.exits[0]?.to).toBe("settle");
+  it("defines bidirectional stage links and distinct backgrounds", () => {
+    expect(STAGE_A.exits.some((e) => e.to === "B")).toBe(true);
+    expect(STAGE_B.exits.some((e) => e.to === "A")).toBe(true);
+    expect(STAGE_B.exits.some((e) => e.to === "C")).toBe(true);
+    expect(STAGE_C.exits.some((e) => e.to === "B")).toBe(true);
+    expect(STAGE_C.exits.some((e) => e.to === "boss")).toBe(true);
+    expect(STAGE_BOSS.exits.some((e) => e.to === "C")).toBe(true);
+    expect(STAGE_BOSS.exits.some((e) => e.to === "settle")).toBe(true);
 
     const bgs = new Set(Object.values(STAGES).map((stage) => stage.bg));
     expect(bgs.size).toBe(4);

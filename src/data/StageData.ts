@@ -19,8 +19,16 @@ export interface StageExit {
   height: number;
   label: string;
   to: StageId | "settle";
-  /** Require standing inside and pressing UP. */
   needUp?: boolean;
+  /** Spawn used when arriving in `to` through this exit. */
+  arrivalSpawn?: { x: number; surfaceY: number };
+}
+
+export interface StageBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface StageDef {
@@ -29,11 +37,12 @@ export interface StageDef {
   bg: string;
   width: number;
   height: number;
+  /** Optional expanded camera/physics bounds (secrets outside the main frame). */
+  bounds?: StageBounds;
   platforms: PlatformDef[];
   playerSpawn: { x: number; surfaceY: number };
   exits: StageExit[];
   enemies: StageEnemySpawn[];
-  /** After all enemies die, respawn them after this many ms (0 = only on re-enter). */
   respawnMs: number;
 }
 
@@ -51,16 +60,16 @@ function floor(width: number, surfaceY: number, color = FLOOR): PlatformDef {
   };
 }
 
-/** Stage A — wide side-scroll feel-test room (cool blue). */
+/** Stage A — main strip y=0..900; annex above y<0. */
 export const STAGE_A: StageDef = {
   id: "A",
   title: "場景 A｜入門台地",
   bg: "#1a2740",
   width: 2800,
   height: 900,
+  bounds: { x: 0, y: -520, width: 2800, height: 1420 },
   respawnMs: 8000,
   playerSpawn: { x: 160, surfaceY: 840 },
-  // Stair rises ~60–70px so a short jump (even with early cut) still lands.
   platforms: [
     floor(2800, 840, 0x4a5a72),
     { id: "a-low", x: 520, surfaceY: 780, width: 220, thickness: 22, color: PLAT },
@@ -80,6 +89,7 @@ export const STAGE_A: StageDef = {
       label: "↓ 進入 B",
       to: "B",
       needUp: true,
+      arrivalSpawn: { x: 480, surfaceY: 180 },
     },
   ],
   enemies: [
@@ -89,13 +99,14 @@ export const STAGE_A: StageDef = {
   ],
 };
 
-/** Stage B — vertical descent shaft (green). */
+/** Stage B — vertical shaft; annex to the left (x < 0). */
 export const STAGE_B: StageDef = {
   id: "B",
   title: "場景 B｜垂直豎井",
   bg: "#15281c",
   width: 960,
   height: 2200,
+  bounds: { x: -360, y: 0, width: 1320, height: 2200 },
   respawnMs: 10000,
   playerSpawn: { x: 480, surfaceY: 180 },
   platforms: [
@@ -104,11 +115,23 @@ export const STAGE_B: StageDef = {
     { id: "b-ledge-2", x: 700, surfaceY: 620, width: 220, thickness: 20, color: PLAT },
     { id: "b-ledge-3", x: 320, surfaceY: 860, width: 240, thickness: 20, color: PLAT },
     { id: "b-ledge-4", x: 680, surfaceY: 1100, width: 240, thickness: 20, color: PLAT },
+    { id: "b-secret-door", x: 240, surfaceY: 1100, width: 140, thickness: 16, color: PLAT },
     { id: "b-ledge-5", x: 360, surfaceY: 1380, width: 260, thickness: 20, color: PLAT },
     { id: "b-ledge-6", x: 640, surfaceY: 1640, width: 260, thickness: 20, color: PLAT },
     floor(960, 2100, 0x2f5a3c),
   ],
   exits: [
+    {
+      id: "b-to-a",
+      x: 140,
+      y: 120,
+      width: 80,
+      height: 100,
+      label: "← 返回 A",
+      to: "A",
+      needUp: true,
+      arrivalSpawn: { x: 2580, surfaceY: 840 },
+    },
     {
       id: "b-to-c",
       x: 820,
@@ -118,6 +141,7 @@ export const STAGE_B: StageDef = {
       label: "→ 進入 C",
       to: "C",
       needUp: true,
+      arrivalSpawn: { x: 120, surfaceY: 460 },
     },
   ],
   enemies: [
@@ -127,13 +151,14 @@ export const STAGE_B: StageDef = {
   ],
 };
 
-/** Stage C — compact antechamber (purple), passage to boss. */
+/** Stage C — annex to the right of the room. */
 export const STAGE_C: StageDef = {
   id: "C",
   title: "場景 C｜前廳",
   bg: "#241833",
   width: 960,
   height: 540,
+  bounds: { x: -320, y: 0, width: 1280, height: 540 },
   respawnMs: 7000,
   playerSpawn: { x: 120, surfaceY: 460 },
   platforms: [
@@ -143,6 +168,17 @@ export const STAGE_C: StageDef = {
   ],
   exits: [
     {
+      id: "c-to-b",
+      x: 520,
+      y: 400,
+      width: 70,
+      height: 110,
+      label: "← 返回 B",
+      to: "B",
+      needUp: true,
+      arrivalSpawn: { x: 760, surfaceY: 2100 },
+    },
+    {
       id: "c-to-boss",
       x: 880,
       y: 400,
@@ -151,6 +187,7 @@ export const STAGE_C: StageDef = {
       label: "→ BOSS",
       to: "boss",
       needUp: true,
+      arrivalSpawn: { x: 160, surfaceY: 640 },
     },
   ],
   enemies: [
@@ -159,7 +196,6 @@ export const STAGE_C: StageDef = {
   ],
 };
 
-/** Boss room — empty arena + leave portal (no boss yet). */
 export const STAGE_BOSS: StageDef = {
   id: "boss",
   title: "BOSS 房｜傳送點",
@@ -174,6 +210,17 @@ export const STAGE_BOSS: StageDef = {
     { id: "boss-pad-r", x: 980, surfaceY: 520, width: 160, thickness: 18, color: 0x8b919a },
   ],
   exits: [
+    {
+      id: "boss-to-c",
+      x: 120,
+      y: 560,
+      width: 80,
+      height: 120,
+      label: "← 返回 C",
+      to: "C",
+      needUp: true,
+      arrivalSpawn: { x: 820, surfaceY: 460 },
+    },
     {
       id: "boss-leave",
       x: 1200,
@@ -197,4 +244,8 @@ export const STAGES: Record<StageId, StageDef> = {
 
 export function stageById(id: StageId): StageDef {
   return STAGES[id];
+}
+
+export function stageBounds(stage: StageDef): StageBounds {
+  return stage.bounds ?? { x: 0, y: 0, width: stage.width, height: stage.height };
 }
