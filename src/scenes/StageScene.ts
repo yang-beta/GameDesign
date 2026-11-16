@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import { queuePlayerArt } from "../art/playerParts";
 import { STAGE_HAZARDS, STAGE_SECRETS, TOXIC_DAMAGE, type HazardDef } from "../data/Interactables";
 import { type StageDef, type StageId, stageById } from "../data/StageData";
 import { toRect } from "../data/MapData";
@@ -83,10 +82,6 @@ export class StageScene extends Phaser.Scene {
     this.respawnAt = -1;
     this.transitioning = false;
     this.wasAirborne = false;
-  }
-
-  preload(): void {
-    queuePlayerArt(this.load);
   }
 
   create(): void {
@@ -196,7 +191,7 @@ export class StageScene extends Phaser.Scene {
     if (!def) {
       return;
     }
-    this.secret = new SecretWall(this, def, this.platforms);
+    this.secret = new SecretWall(this, def, this.platforms, this.surfaces);
     this.chest = new Chest(this, def.chest);
     this.chest.setVisible(false);
   }
@@ -540,7 +535,7 @@ export class StageScene extends Phaser.Scene {
     }
 
     if (this.secret && !this.secret.isBroken && this.touches(hitbox, this.secret.asTarget())) {
-      const landed = this.secret.takeHit(this.player.attackSerial);
+      const landed = this.secret.takeHit(this.player.attackSerial, this.player.facing);
       if (landed) {
         this.impact(attack, this.secret.def.x, this.secret.def.y);
         if (this.secret.isBroken) {

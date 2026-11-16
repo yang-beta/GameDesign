@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STAGE_HAZARDS, STAGE_SECRETS, SECRET_HITS_REQUIRED, TOXIC_DAMAGE } from "./Interactables";
+import { STAGES } from "./StageData";
 import { crackAlpha, shouldCountWallHit } from "../entities/SecretWall";
 
 describe("hazards and secrets", () => {
@@ -12,15 +13,19 @@ describe("hazards and secrets", () => {
     expect(STAGE_HAZARDS.A?.[0]?.damage).toBe(3);
   });
 
-  it("gives each non-boss room a 4-hit secret wall with a chest item label", () => {
+  it("gives each non-boss room a side-hit elevated secret with a chest", () => {
     expect(SECRET_HITS_REQUIRED).toBe(4);
-    expect(STAGE_SECRETS.A?.hitsRequired).toBe(4);
-    expect(STAGE_SECRETS.B?.hitsRequired).toBe(4);
-    expect(STAGE_SECRETS.C?.hitsRequired).toBe(4);
     expect(STAGE_SECRETS.boss).toBeUndefined();
-    expect(STAGE_SECRETS.A?.chest.itemLabel).toBe("物品1");
-    expect(STAGE_SECRETS.B?.chest.itemLabel).toBe("物品2");
-    expect(STAGE_SECRETS.C?.chest.itemLabel).toBe("物品3");
+    for (const id of ["A", "B", "C"] as const) {
+      const secret = STAGE_SECRETS[id];
+      expect(secret, id).toBeDefined();
+      expect(secret!.hitsRequired).toBe(4);
+      expect(secret!.approachSide === 1 || secret!.approachSide === -1).toBe(true);
+      // Elevated relative to that stage's floor (not sitting on the bottom).
+      const floorY = Math.max(...STAGES[id].platforms.map((p) => p.surfaceY));
+      expect(secret!.roomFloor.surfaceY).toBeLessThan(floorY - 40);
+      expect(secret!.chest.itemLabel.startsWith("物品")).toBe(true);
+    }
   });
 
   it("advances crack visuals and counts one hit per attack serial", () => {

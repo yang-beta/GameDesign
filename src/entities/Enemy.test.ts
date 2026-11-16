@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { STAGE_A } from "../data/StageData";
-import { shouldApplyHit, shouldChase, shouldHoldAndShoot, stepPatrol } from "./Enemy";
+import {
+  ENEMY_HEIGHT,
+  SHOOT_COOLDOWN_MS,
+  shouldApplyHit,
+  shouldChase,
+  shouldHoldAndShoot,
+  stepPatrol,
+} from "./Enemy";
+import { STAND_HEIGHT } from "./PlayerController";
 
 describe("enemy patrol", () => {
   it("reverses at the ends of the patrol range", () => {
@@ -40,5 +48,10 @@ describe("enemy combat helpers", () => {
     expect(shouldChase(400)).toBe(false);
     expect(shouldHoldAndShoot(150)).toBe(true);
     expect(shouldHoldAndShoot(250)).toBe(false);
+  });
+
+  it("matches player height and slows shooter fire ~70%", () => {
+    expect(ENEMY_HEIGHT).toBe(STAND_HEIGHT);
+    expect(SHOOT_COOLDOWN_MS).toBeGreaterThanOrEqual(3500);
   });
 });
