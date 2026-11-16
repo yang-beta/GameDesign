@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GRAVITY_Y } from "./entities/PlayerController";
+import { BootScene } from "./scenes/BootScene";
 import { SettleScene } from "./scenes/SettleScene";
 import { StageScene } from "./scenes/StageScene";
 import { resetRun } from "./state/RunState";
@@ -23,7 +24,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [StageScene, SettleScene],
+  scene: [BootScene, StageScene, SettleScene],
 });
 
 game.canvas.setAttribute("tabindex", "0");

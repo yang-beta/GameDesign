@@ -1,3 +1,4 @@
+import type { PlatformDef } from "./MapData";
 import type { StageId } from "./StageData";
 
 export const TOXIC_DAMAGE = 3;
@@ -23,6 +24,10 @@ export interface ChestDef {
   itemColor: number;
 }
 
+/**
+ * Side-hit secret: wall blocks entry into an elevated alcove room.
+ * Player attacks from approachSide (1 = wall's left face / hit facing right).
+ */
 export interface SecretWallDef {
   id: string;
   x: number;
@@ -30,8 +35,13 @@ export interface SecretWallDef {
   width: number;
   height: number;
   hitsRequired: number;
-  /** Dim alcove revealed after the wall breaks. */
+  /** Blend into stage rock / cliff so it isn't a bright prop. */
+  blendColor: number;
+  /** 1 = approach from left (punch right); -1 = approach from right. */
+  approachSide: 1 | -1;
   alcove: { x: number; y: number; width: number; height: number; color: number };
+  /** Floor inside the secret room (always collidable; visually dim until open). */
+  roomFloor: PlatformDef;
   chest: ChestDef;
 }
 
@@ -63,19 +73,33 @@ export const STAGE_HAZARDS: Partial<Record<StageId, HazardDef[]>> = {
   ],
 };
 
-/** One cracked secret wall per non-boss room. */
+/**
+ * Elevated side-entry secrets (punch/kick left-right only).
+ * A: right of a-high · B: left of mid shaft ledge · C: right of c-rail
+ */
 export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   A: {
     id: "a-secret",
-    x: 1860,
-    y: 760,
-    width: 56,
-    height: 140,
+    // Stand on a-high (x≈1240, y=660) and punch RIGHT into this face.
+    x: 1360,
+    y: 600,
+    width: 36,
+    height: 100,
     hitsRequired: SECRET_HITS_REQUIRED,
-    alcove: { x: 1780, y: 760, width: 140, height: 150, color: 0x121820 },
+    blendColor: 0x243044,
+    approachSide: 1,
+    alcove: { x: 1480, y: 600, width: 200, height: 120, color: 0x101820 },
+    roomFloor: {
+      id: "a-secret-floor",
+      x: 1480,
+      surfaceY: 660,
+      width: 200,
+      thickness: 18,
+      color: 0x1c2838,
+    },
     chest: {
-      x: 1760,
-      surfaceY: 840,
+      x: 1520,
+      surfaceY: 660,
       itemId: "item-1",
       itemLabel: "物品1",
       itemColor: 0xffc857,
@@ -83,15 +107,26 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   },
   B: {
     id: "b-secret",
-    x: 120,
-    y: 2000,
-    width: 52,
-    height: 160,
+    // From b-ledge-4 (x≈680, y=1100), punch LEFT into wall → small room.
+    x: 520,
+    y: 1040,
+    width: 34,
+    height: 100,
     hitsRequired: SECRET_HITS_REQUIRED,
-    alcove: { x: 70, y: 2000, width: 120, height: 170, color: 0x0d1810 },
+    blendColor: 0x1a3022,
+    approachSide: -1,
+    alcove: { x: 400, y: 1040, width: 180, height: 120, color: 0x0c1610 },
+    roomFloor: {
+      id: "b-secret-floor",
+      x: 400,
+      surfaceY: 1100,
+      width: 180,
+      thickness: 18,
+      color: 0x163022,
+    },
     chest: {
-      x: 70,
-      surfaceY: 2100,
+      x: 380,
+      surfaceY: 1100,
       itemId: "item-2",
       itemLabel: "物品2",
       itemColor: 0x7ec8ff,
@@ -99,15 +134,26 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   },
   C: {
     id: "c-secret",
-    x: 300,
-    y: 380,
-    width: 48,
-    height: 140,
+    // From c-rail (x≈700, y=320), punch LEFT into wall → loft room (keeps boss exit clear).
+    x: 580,
+    y: 270,
+    width: 32,
+    height: 90,
     hitsRequired: SECRET_HITS_REQUIRED,
-    alcove: { x: 240, y: 380, width: 110, height: 150, color: 0x160e22 },
+    blendColor: 0x2a1e38,
+    approachSide: -1,
+    alcove: { x: 480, y: 270, width: 140, height: 110, color: 0x120c1a },
+    roomFloor: {
+      id: "c-secret-floor",
+      x: 480,
+      surfaceY: 320,
+      width: 140,
+      thickness: 16,
+      color: 0x221830,
+    },
     chest: {
-      x: 230,
-      surfaceY: 460,
+      x: 460,
+      surfaceY: 320,
       itemId: "item-3",
       itemLabel: "物品3",
       itemColor: 0xf0a0ff,

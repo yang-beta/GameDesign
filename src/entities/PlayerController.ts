@@ -710,17 +710,13 @@ export class PlayerController {
       this.facing = 1;
     }
 
-    const holdCrouch =
-      input.down &&
-      anchored &&
-      !jumped &&
-      !inHitstun &&
-      !strikeBusy;
-    // Airborne for attack gating: not supported (includes mid-air after 2nd jump)
+    // Keep crouch while ↓ is held on a surface — including mid crouch-attack —
+    // so combos don't pop the stance back to stand, and crouch-walk stays available.
+    const wantCrouch = input.down && anchored && !jumped && !inHitstun;
     const airborne = !supported && !this.dropActive;
     const beforeAttack = this.combat.attack;
     this.combat = beginBufferedAttack(this.combat, time, {
-      crouching: holdCrouch,
+      crouching: wantCrouch || isCrouchAttack(this.combat.attack),
       airborne,
       preferKick: this.preferKick,
     });
@@ -729,11 +725,13 @@ export class PlayerController {
     } else if (time > this.combat.bufferUntil) {
       this.preferKick = false;
     }
-    this.crouching = isCrouchAttack(this.combat.attack) || holdCrouch;
+    this.crouching = isCrouchAttack(this.combat.attack) || wantCrouch;
     this.applyStance(this.crouching);
-    if (holdCrouch && this.crouchAnchorTop !== null && !isAirAttack(this.combat.attack)) {
+    const plantCrouch =
+      this.crouching && this.crouchAnchorTop !== null && !isAirAttack(this.combat.attack) && !airborne;
+    if (plantCrouch) {
       body.setAllowGravity(false);
-      this.plantFeet(this.crouchAnchorTop);
+      this.plantFeet(this.crouchAnchorTop!);
     } else {
       body.setAllowGravity(true);
     }
