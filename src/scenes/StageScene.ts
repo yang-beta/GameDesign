@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { queuePlayerArt } from "../art/playerParts";
+import { STAGE_HAZARDS, STAGE_SECRETS, TOXIC_DAMAGE, type HazardDef } from "../data/Interactables";
 import { type StageDef, type StageId, stageById } from "../data/StageData";
 import { toRect } from "../data/MapData";
 import { HitSpark } from "../effects/HitSpark";
 import { Bullet } from "../entities/Bullet";
+import { Chest } from "../entities/Chest";
 import { Enemy, PATROL_CONTACT_DAMAGE } from "../entities/Enemy";
 import {
   GRAVITY_Y,
@@ -15,13 +17,14 @@ import {
   type PlayerInput,
 } from "../entities/PlayerController";
 import { PlayerRenderer } from "../entities/PlayerRenderer";
+import { SecretWall } from "../entities/SecretWall";
 import {
   applyDamage,
-  getHp,
-  getMaxHp,
+  collectItem,
   markStageCleared,
   resetRun,
 } from "../state/RunState";
+import { GameHud } from "../ui/GameHud";
 
 interface StageSceneData {
   stageId?: StageId;
@@ -34,11 +37,13 @@ export class StageScene extends Phaser.Scene {
   private player!: PlayerController;
   private puppet!: PlayerRenderer;
   private sparks!: HitSpark;
+  private hud!: GameHud;
   private enemies: Enemy[] = [];
   private bullets: Bullet[] = [];
+  private hazards: { def: HazardDef; zone: Phaser.GameObjects.Rectangle }[] = [];
+  private secret: SecretWall | null = null;
+  private chest: Chest | null = null;
   private exits: { zone: Phaser.GameObjects.Rectangle; def: StageDef["exits"][number] }[] = [];
-  private statusText!: Phaser.GameObjects.Text;
-  private hpText!: Phaser.GameObjects.Text;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private jumpKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
@@ -55,6 +60,7 @@ export class StageScene extends Phaser.Scene {
   private hurtUntil = 0;
   private respawnAt = -1;
   private transitioning = false;
+  private wasAirborne = false;
 
   constructor() {
     super("stage");
@@ -64,6 +70,9 @@ export class StageScene extends Phaser.Scene {
     this.stage = stageById(data.stageId ?? "A");
     this.enemies = [];
     this.bullets = [];
+    this.hazards = [];
+    this.secret = null;
+    this.chest = null;
     this.exits = [];
     this.surfaces = [];
     this.dropping = null;
@@ -73,6 +82,7 @@ export class StageScene extends Phaser.Scene {
     this.hurtUntil = 0;
     this.respawnAt = -1;
     this.transitioning = false;
+    this.wasAirborne = false;
   }
 
   preload(): void {
@@ -109,11 +119,13 @@ export class StageScene extends Phaser.Scene {
       return this.blockOf(left) !== this.dropping && this.blockOf(right) !== this.dropping;
     });
 
+    this.createHazards();
+    this.createSecret();
     this.spawnEnemies();
     this.createExits();
     this.cameras.main.startFollow(this.player.bodyObject, true, 0.16, 0.16);
     this.bindInput();
-    this.buildHud();
+    this.hud = new GameHud(this);
   }
 
   update(time: number, delta: number): void {
@@ -148,6 +160,8 @@ export class StageScene extends Phaser.Scene {
       this.tickEnemies(time);
       this.tickBullets(time);
       this.resolvePlayerHurt(time);
+      this.checkHazards(time);
+      this.checkChest();
       this.checkExits();
       this.checkRespawn(time);
     }
@@ -155,8 +169,36 @@ export class StageScene extends Phaser.Scene {
     this.puppet.sync(this.player.getViewState());
     this.resolveAttackHits();
     this.sparks.update(delta);
-    this.statusText.setText(`狀態：${this.player.getViewState().status}`);
-    this.hpText.setText(`生命：${getHp()} / ${getMaxHp()}`);
+    this.updateHudStatus(time);
+  }
+
+  private createHazards(): void {
+    const list = STAGE_HAZARDS[this.stage.id] ?? [];
+    for (const def of list) {
+      const zone = this.add
+        .rectangle(def.x, def.y, def.width, def.height, def.color, 0.72)
+        .setStrokeStyle(2, 0xd6ff7a, 0.85)
+        .setDepth(2);
+      // Hatch stripes as temporary "toxic material" cue.
+      const hatch = this.add.graphics().setDepth(2);
+      hatch.lineStyle(2, 0x204010, 0.35);
+      const left = def.x - def.width / 2;
+      const top = def.y - def.height / 2;
+      for (let x = left; x < left + def.width; x += 10) {
+        hatch.lineBetween(x, top + def.height, x + 8, top);
+      }
+      this.hazards.push({ def, zone });
+    }
+  }
+
+  private createSecret(): void {
+    const def = STAGE_SECRETS[this.stage.id];
+    if (!def) {
+      return;
+    }
+    this.secret = new SecretWall(this, def, this.platforms);
+    this.chest = new Chest(this, def.chest);
+    this.chest.setVisible(false);
   }
 
   private spawnEnemies(): void {
@@ -216,47 +258,6 @@ export class StageScene extends Phaser.Scene {
     this.input.on("pointerdown", () => this.game.canvas.focus());
   }
 
-  private buildHud(): void {
-    this.add
-      .rectangle(12, 12, 700, 118, 0x000000, 0.55)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(20);
-
-    const font = '"Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif';
-    this.add
-      .text(24, 18, `獸王覺醒｜${this.stage.title}`, {
-        fontFamily: font,
-        fontSize: "15px",
-        color: "#9eb0d6",
-      })
-      .setScrollFactor(0)
-      .setDepth(21);
-
-    this.statusText = this.add
-      .text(24, 40, "狀態：站立", { fontFamily: font, fontSize: "20px", color: "#f4f7fb" })
-      .setScrollFactor(0)
-      .setDepth(21);
-
-    this.hpText = this.add
-      .text(24, 68, `生命：${getHp()} / ${getMaxHp()}`, {
-        fontFamily: font,
-        fontSize: "18px",
-        color: "#ffb4b4",
-      })
-      .setScrollFactor(0)
-      .setDepth(21);
-
-    this.add
-      .text(24, 94, "方向鍵移動　空白跳　Z 拳　C 踢　↑ 傳送門　H 判定框", {
-        fontFamily: font,
-        fontSize: "13px",
-        color: "#c5cad3",
-      })
-      .setScrollFactor(0)
-      .setDepth(21);
-  }
-
   private tickEnemies(time: number): void {
     const px = this.player.bodyObject.x;
     const py = this.player.bodyObject.y;
@@ -275,6 +276,31 @@ export class StageScene extends Phaser.Scene {
     this.bullets = this.bullets.filter((bullet) => bullet.tick(time));
   }
 
+  private checkHazards(time: number): void {
+    if (time < this.hurtUntil || this.player.isInHitstun(this.simTime)) {
+      return;
+    }
+    for (const hazard of this.hazards) {
+      if (this.overlapsPlayer(hazard.zone)) {
+        this.hurtPlayer(hazard.def.damage || TOXIC_DAMAGE, time, 0);
+        this.hud.pushEvent("踩到有毒汙染物", time);
+        return;
+      }
+    }
+  }
+
+  private checkChest(): void {
+    if (!this.chest || !this.secret?.isBroken) {
+      return;
+    }
+    this.chest.setVisible(true);
+    const got = this.chest.tryOpen(this.player.bodyObject.x, this.player.bodyObject.y);
+    if (got) {
+      collectItem(got);
+      this.hud.pushEvent(`拿到${got}`, this.time.now, 2800);
+    }
+  }
+
   private resolvePlayerHurt(time: number): void {
     if (time < this.hurtUntil || this.player.isInHitstun(this.simTime)) {
       return;
@@ -285,7 +311,11 @@ export class StageScene extends Phaser.Scene {
         continue;
       }
       if (this.overlapsPlayer(enemy)) {
-        this.hurtPlayer(enemy.contactDamage || PATROL_CONTACT_DAMAGE, time, enemy.x < this.player.bodyObject.x ? 1 : -1);
+        this.hurtPlayer(
+          enemy.contactDamage || PATROL_CONTACT_DAMAGE,
+          time,
+          enemy.x < this.player.bodyObject.x ? 1 : -1,
+        );
         return;
       }
     }
@@ -295,9 +325,10 @@ export class StageScene extends Phaser.Scene {
         continue;
       }
       if (this.overlapsPlayer(bullet)) {
-        const dir = bullet.body && "velocity" in bullet.body
-          ? ((bullet.body as Phaser.Physics.Arcade.Body).velocity.x >= 0 ? 1 : -1)
-          : 1;
+        const dir =
+          bullet.body && "velocity" in bullet.body
+            ? ((bullet.body as Phaser.Physics.Arcade.Body).velocity.x >= 0 ? 1 : -1)
+            : 1;
         this.hurtPlayer(bullet.damage, time, dir as 1 | -1);
         bullet.destroy();
         return;
@@ -313,11 +344,14 @@ export class StageScene extends Phaser.Scene {
     );
   }
 
-  private hurtPlayer(amount: number, time: number, knockDir: 1 | -1): void {
+  private hurtPlayer(amount: number, time: number, knockDir: 1 | -1 | 0): void {
     const result = applyDamage(amount);
     this.hurtUntil = time + PLAYER_HURT_COOLDOWN_MS;
-    this.player.physicsBody.setVelocity(knockDir * 220, -220);
+    const dir = knockDir === 0 ? ((-this.player.facing) as 1 | -1) : knockDir;
+    this.player.applyHurtReaction(this.simTime, dir);
     this.cameras.main.shake(100, 0.004);
+    this.hud.refreshHp();
+    this.hud.pushEvent("受傷", time);
     this.spawnDamageFloat(result.dealt);
     if (result.dead) {
       this.transitioning = true;
@@ -330,21 +364,34 @@ export class StageScene extends Phaser.Scene {
 
   private spawnDamageFloat(dealt: number): void {
     const label = this.add
-      .text(210, 68, `-${dealt}`, {
+      .text(200, 48, `-${dealt}`, {
         fontFamily: '"Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif',
-        fontSize: "22px",
+        fontSize: "20px",
         color: "#ff6b6b",
       })
       .setScrollFactor(0)
-      .setDepth(22);
+      .setDepth(50);
     this.tweens.add({
       targets: label,
-      y: 40,
+      y: 24,
       alpha: 0,
       duration: 700,
       ease: "Quad.easeOut",
       onComplete: () => label.destroy(),
     });
+  }
+
+  private updateHudStatus(time: number): void {
+    const view = this.player.getViewState();
+    this.hud.setPoseStatus(view.status);
+    this.hud.refreshHp();
+    this.hud.tick(time);
+
+    const airborne = view.pose === "jump" || view.pose === "fall";
+    if (airborne && !this.wasAirborne) {
+      this.hud.pushEvent("跳躍", time, 900);
+    }
+    this.wasAirborne = airborne;
   }
 
   private checkExits(): void {
@@ -356,6 +403,7 @@ export class StageScene extends Phaser.Scene {
       if (exit.def.needUp && !up) {
         continue;
       }
+      this.hud.pushEvent("移動到下一個場景", this.time.now, 1200);
       this.goTo(exit.def.to);
       return;
     }
@@ -490,6 +538,20 @@ export class StageScene extends Phaser.Scene {
     if (!hitbox || !attack) {
       return;
     }
+
+    if (this.secret && !this.secret.isBroken && this.touches(hitbox, this.secret.asTarget())) {
+      const landed = this.secret.takeHit(this.player.attackSerial);
+      if (landed) {
+        this.impact(attack, this.secret.def.x, this.secret.def.y);
+        if (this.secret.isBroken) {
+          this.hud.pushEvent("發現隱藏密道", this.time.now, 3200);
+          this.chest?.setVisible(true);
+        } else {
+          this.hud.pushEvent(`牆壁龜裂 ${this.secret.hitCount}/${this.secret.def.hitsRequired}`, this.time.now, 1200);
+        }
+      }
+    }
+
     for (const enemy of this.enemies) {
       if (!enemy.active || !this.touches(hitbox, enemy)) {
         continue;

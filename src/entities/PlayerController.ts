@@ -554,6 +554,22 @@ export class PlayerController {
     return time < this.combat.hitstunUntil;
   }
 
+  /** Shared hurt reaction for enemies, hazards, and debug X. */
+  applyHurtReaction(time: number, knockDir: 1 | -1, force = { x: 220, y: -220 }): void {
+    if (time < this.combat.invulnerableUntil) {
+      return;
+    }
+    this.combat = {
+      ...this.combat,
+      attack: null,
+      bufferUntil: -1,
+      comboSlot: 0,
+      hitstunUntil: time + HITSTUN_MS,
+      invulnerableUntil: time + INVULNERABLE_MS,
+    };
+    this.physicsBody.setVelocity(knockDir * force.x, force.y);
+  }
+
   isCrouching(): boolean {
     return this.crouching && !this.dropActive;
   }
