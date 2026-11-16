@@ -6,7 +6,8 @@ import {
   TOXIC_DAMAGE,
   type HazardDef,
 } from "../data/Interactables";
-import { type StageDef, type StageId, stageBounds, stageById } from "../data/StageData";
+import { type EdgeExit, type StageDef, type StageId, stageById } from "../data/StageData";
+import { PlayFrame, gapsFromEdgeExits } from "../world/PlayFrame";
 import { toRect } from "../data/MapData";
 import { HitSpark } from "../effects/HitSpark";
 import { Bullet } from "../entities/Bullet";
@@ -52,14 +53,13 @@ export class StageScene extends Phaser.Scene {
   private chest: Chest | null = null;
   private lifts: MovingPlatform[] = [];
   private entrySpawn: { x: number; surfaceY: number } | null = null;
-  private exits: { zone: Phaser.GameObjects.Rectangle; def: StageDef["exits"][number] }[] = [];
+  private playFrame!: PlayFrame;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private jumpKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
   private kickKey!: Phaser.Input.Keyboard.Key;
   private hitKey!: Phaser.Input.Keyboard.Key;
   private debugKey!: Phaser.Input.Keyboard.Key;
-  private upKey!: Phaser.Input.Keyboard.Key;
   private surfaces: { block: Phaser.GameObjects.Rectangle; droppable: boolean }[] = [];
   private dropping: Phaser.GameObjects.Rectangle | null = null;
   private crouchAnchor: Phaser.GameObjects.Rectangle | null = null;
@@ -84,7 +84,6 @@ export class StageScene extends Phaser.Scene {
     this.secret = null;
     this.chest = null;
     this.lifts = [];
-    this.exits = [];
     this.surfaces = [];
     this.dropping = null;
     this.crouchAnchor = null;
@@ -98,7 +97,7 @@ export class StageScene extends Phaser.Scene {
 
   create(): void {
     const stage = this.stage;
-    const bounds = stageBounds(stage);
+    const bounds = stage.bounds;
     this.cameras.main.setBackgroundColor(stage.bg);
     this.physics.world.gravity.y = GRAVITY_Y;
     this.physics.world.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
@@ -129,10 +128,11 @@ export class StageScene extends Phaser.Scene {
     });
 
     this.createHazards();
+    this.createPlayFrame();
     this.createSecret();
     this.createLifts();
     this.spawnEnemies();
-    this.createExits();
+    this.createEdgeHints();
     this.cameras.main.startFollow(this.player.bodyObject, true, 0.16, 0.16);
     this.bindInput();
     this.hud = new GameHud(this);
@@ -206,7 +206,11 @@ export class StageScene extends Phaser.Scene {
     if (!def) {
       return;
     }
-    this.secret = new SecretWall(this, def, this.platforms, this.surfaces);
+    this.secret = new SecretWall(this, def, this.platforms, this.surfaces, () => {
+      this.playFrame.openGate(def.id);
+      this.hud.pushEvent("發現隱藏密道", this.time.now, 3200);
+      this.chest?.setVisible(true);
+    });
     this.chest = new Chest(this, def.chest);
     this.chest.setVisible(false);
   }
@@ -247,22 +251,40 @@ export class StageScene extends Phaser.Scene {
     this.respawnAt = -1;
   }
 
-  private createExits(): void {
-    for (const def of this.stage.exits) {
-      const zone = this.add
-        .rectangle(def.x, def.y, def.width, def.height, 0x66ffcc, 0.22)
-        .setStrokeStyle(2, 0x9effe0, 0.9)
-        .setDepth(2);
-      this.physics.add.existing(zone, true);
+  private createPlayFrame(): void {
+    const frame = this.stage.playFrame;
+    const permanent = gapsFromEdgeExits(this.stage.edgeExits, frame);
+    const secret = STAGE_SECRETS[this.stage.id];
+    const gates = secret?.borderGate
+      ? [{ id: secret.id, gate: secret.borderGate }]
+      : [];
+    this.playFrame = new PlayFrame(this, frame, this.platforms, permanent, gates);
+  }
+
+  private createEdgeHints(): void {
+    const frame = this.stage.playFrame;
+    const font = '"Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif';
+    for (const exit of this.stage.edgeExits) {
+      if (!exit.label) continue;
+      let x = frame.x + frame.width / 2;
+      let y = frame.y + frame.height / 2;
+      if (exit.edge === "right") {
+        x = frame.x + frame.width - 28;
+        y = ((exit.alongMin ?? frame.y) + (exit.alongMax ?? frame.y + frame.height)) / 2;
+      } else if (exit.edge === "left") {
+        x = frame.x + 28;
+        y = ((exit.alongMin ?? frame.y) + (exit.alongMax ?? frame.y + frame.height)) / 2;
+      } else if (exit.edge === "top") {
+        y = frame.y + 24;
+        x = ((exit.alongMin ?? frame.x) + (exit.alongMax ?? frame.x + frame.width)) / 2;
+      } else {
+        y = frame.y + frame.height - 24;
+        x = ((exit.alongMin ?? frame.x) + (exit.alongMax ?? frame.x + frame.width)) / 2;
+      }
       this.add
-        .text(def.x, def.y - def.height / 2 - 18, def.label, {
-          fontFamily: '"Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif',
-          fontSize: "14px",
-          color: "#d7fff2",
-        })
+        .text(x, y, exit.label, { fontFamily: font, fontSize: "14px", color: "#d7fff2" })
         .setOrigin(0.5)
-        .setDepth(3);
-      this.exits.push({ zone, def });
+        .setDepth(13);
     }
   }
 
@@ -277,7 +299,6 @@ export class StageScene extends Phaser.Scene {
     this.kickKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     this.hitKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    this.upKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     keyboard.addCapture([
       Phaser.Input.Keyboard.KeyCodes.SPACE,
       Phaser.Input.Keyboard.KeyCodes.Z,
@@ -429,21 +450,53 @@ export class StageScene extends Phaser.Scene {
   }
 
   private checkExits(): void {
-    const up = this.cursors.up.isDown || this.upKey.isDown;
-    for (const exit of this.exits) {
-      if (!this.overlapsPlayer(exit.zone)) {
-        continue;
-      }
-      if (exit.def.needUp && !up) {
-        continue;
-      }
-      this.hud.pushEvent("移動到下一個場景", this.time.now, 1200);
-      this.goTo(exit.def);
+    const exit = this.detectEdgeExit();
+    if (!exit) {
       return;
     }
+    this.hud.pushEvent(exit.label ? `前往 ${exit.label}` : "移動到下一個場景", this.time.now, 1000);
+    this.goTo(exit);
   }
 
-  private goTo(exit: StageDef["exits"][number]): void {
+  private detectEdgeExit(): EdgeExit | null {
+    const frame = this.stage.playFrame;
+    const body = this.player.physicsBody;
+    const x = this.player.bodyObject.x;
+    const y = this.player.bodyObject.y;
+    const margin = 18;
+    for (const exit of this.stage.edgeExits) {
+      if (exit.edge === "right") {
+        const along = y;
+        if (x >= frame.x + frame.width - margin && this.alongOk(along, exit, frame.y, frame.height)) {
+          return exit;
+        }
+      } else if (exit.edge === "left") {
+        const along = y;
+        if (x <= frame.x + margin && this.alongOk(along, exit, frame.y, frame.height)) {
+          return exit;
+        }
+      } else if (exit.edge === "top") {
+        const along = x;
+        if (y <= frame.y + margin && this.alongOk(along, exit, frame.x, frame.width)) {
+          return exit;
+        }
+      } else if (exit.edge === "bottom") {
+        const along = x;
+        if (body.bottom >= frame.y + frame.height - margin && this.alongOk(along, exit, frame.x, frame.width)) {
+          return exit;
+        }
+      }
+    }
+    return null;
+  }
+
+  private alongOk(along: number, exit: EdgeExit, origin: number, span: number): boolean {
+    const min = exit.alongMin ?? origin;
+    const max = exit.alongMax ?? origin + span;
+    return along >= min && along <= max;
+  }
+
+  private goTo(exit: EdgeExit): void {
     if (this.transitioning) {
       return;
     }
@@ -580,10 +633,7 @@ export class StageScene extends Phaser.Scene {
       const landed = this.secret.takeHit(this.player.attackSerial, this.player.facing);
       if (landed) {
         this.impact(attack, this.secret.def.x, this.secret.def.y);
-        if (this.secret.isBroken) {
-          this.hud.pushEvent("發現隱藏密道", this.time.now, 3200);
-          this.chest?.setVisible(true);
-        } else {
+        if (!this.secret.isBroken) {
           this.hud.pushEvent(`牆壁龜裂 ${this.secret.hitCount}/${this.secret.def.hitsRequired}`, this.time.now, 1200);
         }
       }

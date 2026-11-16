@@ -2,6 +2,7 @@ import type { PlatformDef } from "./MapData";
 
 export type StageId = "A" | "B" | "C" | "boss";
 export type EnemyKind = "patrol" | "shooter";
+export type StageEdge = "left" | "right" | "top" | "bottom";
 
 export interface StageEnemySpawn {
   id: string;
@@ -11,19 +12,6 @@ export interface StageEnemySpawn {
   patrol: number;
 }
 
-export interface StageExit {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  to: StageId | "settle";
-  needUp?: boolean;
-  /** Spawn used when arriving in `to` through this exit. */
-  arrivalSpawn?: { x: number; surfaceY: number };
-}
-
 export interface StageBounds {
   x: number;
   y: number;
@@ -31,17 +19,29 @@ export interface StageBounds {
   height: number;
 }
 
+/** Soft edge transition — reach the play-frame edge to change stage (no door prop). */
+export interface EdgeExit {
+  id: string;
+  edge: StageEdge;
+  to: StageId | "settle";
+  /** Limit the exit to a band along the edge (world coords). */
+  alongMin?: number;
+  alongMax?: number;
+  arrivalSpawn?: { x: number; surfaceY: number };
+  label?: string;
+}
+
 export interface StageDef {
   id: StageId;
   title: string;
   bg: string;
-  width: number;
-  height: number;
-  /** Optional expanded camera/physics bounds (secrets outside the main frame). */
-  bounds?: StageBounds;
+  /** Main play rectangle (border drawn; default blockers). */
+  playFrame: StageBounds;
+  /** Full physics/camera world (may include secret annex outside the frame). */
+  bounds: StageBounds;
   platforms: PlatformDef[];
   playerSpawn: { x: number; surfaceY: number };
-  exits: StageExit[];
+  edgeExits: EdgeExit[];
   enemies: StageEnemySpawn[];
   respawnMs: number;
 }
@@ -49,10 +49,10 @@ export interface StageDef {
 const FLOOR = 0x5e646c;
 const PLAT = 0x8b919a;
 
-function floor(width: number, surfaceY: number, color = FLOOR): PlatformDef {
+function floor(width: number, surfaceY: number, color = FLOOR, x?: number): PlatformDef {
   return {
     id: "floor",
-    x: width / 2,
+    x: x ?? width / 2,
     surfaceY,
     width,
     thickness: 48,
@@ -60,36 +60,33 @@ function floor(width: number, surfaceY: number, color = FLOOR): PlatformDef {
   };
 }
 
-/** Stage A — main strip y=0..900; annex above y<0. */
+/** Stage A — play frame 0..2800 × 0..900; secret annex above y=0. */
 export const STAGE_A: StageDef = {
   id: "A",
   title: "場景 A｜入門台地",
   bg: "#1a2740",
-  width: 2800,
-  height: 900,
-  bounds: { x: 0, y: -520, width: 2800, height: 1420 },
+  playFrame: { x: 0, y: 0, width: 2800, height: 900 },
+  bounds: { x: 0, y: -480, width: 2800, height: 1380 },
   respawnMs: 8000,
   playerSpawn: { x: 160, surfaceY: 840 },
   platforms: [
     floor(2800, 840, 0x4a5a72),
     { id: "a-low", x: 520, surfaceY: 780, width: 220, thickness: 22, color: PLAT },
     { id: "a-mid", x: 900, surfaceY: 720, width: 200, thickness: 22, color: PLAT },
-    { id: "a-high", x: 1240, surfaceY: 660, width: 180, thickness: 22, color: PLAT },
+    { id: "a-high", x: 1240, surfaceY: 660, width: 220, thickness: 22, color: PLAT },
     { id: "a-drop", x: 1600, surfaceY: 760, width: 280, thickness: 22, color: PLAT },
     { id: "a-bridge", x: 2100, surfaceY: 780, width: 320, thickness: 22, color: PLAT },
     { id: "a-gate", x: 2550, surfaceY: 840, width: 200, thickness: 22, color: 0x6d7f9a },
   ],
-  exits: [
+  edgeExits: [
     {
-      id: "a-to-b",
-      x: 2680,
-      y: 780,
-      width: 70,
-      height: 100,
-      label: "↓ 進入 B",
+      id: "a-right-to-b",
+      edge: "right",
       to: "B",
-      needUp: true,
+      alongMin: 700,
+      alongMax: 900,
       arrivalSpawn: { x: 480, surfaceY: 180 },
+      label: "→ B",
     },
   ],
   enemies: [
@@ -99,14 +96,13 @@ export const STAGE_A: StageDef = {
   ],
 };
 
-/** Stage B — vertical shaft; annex to the left (x < 0). */
+/** Stage B — vertical shaft; top edge jump returns to A; bottom-right goes to C. */
 export const STAGE_B: StageDef = {
   id: "B",
   title: "場景 B｜垂直豎井",
   bg: "#15281c",
-  width: 960,
-  height: 2200,
-  bounds: { x: -360, y: 0, width: 1320, height: 2200 },
+  playFrame: { x: 0, y: 0, width: 960, height: 2200 },
+  bounds: { x: -320, y: 0, width: 1280, height: 2200 },
   respawnMs: 10000,
   playerSpawn: { x: 480, surfaceY: 180 },
   platforms: [
@@ -120,28 +116,24 @@ export const STAGE_B: StageDef = {
     { id: "b-ledge-6", x: 640, surfaceY: 1640, width: 260, thickness: 20, color: PLAT },
     floor(960, 2100, 0x2f5a3c),
   ],
-  exits: [
+  edgeExits: [
     {
-      id: "b-to-a",
-      x: 140,
-      y: 120,
-      width: 80,
-      height: 100,
-      label: "← 返回 A",
+      id: "b-top-to-a",
+      edge: "top",
       to: "A",
-      needUp: true,
+      alongMin: 200,
+      alongMax: 760,
       arrivalSpawn: { x: 2580, surfaceY: 840 },
+      label: "↑ A",
     },
     {
-      id: "b-to-c",
-      x: 820,
-      y: 2040,
-      width: 80,
-      height: 100,
-      label: "→ 進入 C",
+      id: "b-right-to-c",
+      edge: "right",
       to: "C",
-      needUp: true,
+      alongMin: 1950,
+      alongMax: 2200,
       arrivalSpawn: { x: 120, surfaceY: 460 },
+      label: "→ C",
     },
   ],
   enemies: [
@@ -151,14 +143,12 @@ export const STAGE_B: StageDef = {
   ],
 };
 
-/** Stage C — annex to the right of the room. */
 export const STAGE_C: StageDef = {
   id: "C",
   title: "場景 C｜前廳",
   bg: "#241833",
-  width: 960,
-  height: 540,
-  bounds: { x: -320, y: 0, width: 1280, height: 540 },
+  playFrame: { x: 0, y: 0, width: 960, height: 540 },
+  bounds: { x: -300, y: 0, width: 1260, height: 540 },
   respawnMs: 7000,
   playerSpawn: { x: 120, surfaceY: 460 },
   platforms: [
@@ -166,28 +156,24 @@ export const STAGE_C: StageDef = {
     { id: "c-step", x: 400, surfaceY: 380, width: 140, thickness: 18, color: PLAT },
     { id: "c-rail", x: 700, surfaceY: 320, width: 180, thickness: 18, color: PLAT },
   ],
-  exits: [
+  edgeExits: [
     {
-      id: "c-to-b",
-      x: 520,
-      y: 400,
-      width: 70,
-      height: 110,
-      label: "← 返回 B",
+      id: "c-left-to-b",
+      edge: "left",
       to: "B",
-      needUp: true,
+      alongMin: 360,
+      alongMax: 540,
       arrivalSpawn: { x: 760, surfaceY: 2100 },
+      label: "← B",
     },
     {
-      id: "c-to-boss",
-      x: 880,
-      y: 400,
-      width: 70,
-      height: 110,
-      label: "→ BOSS",
+      id: "c-right-to-boss",
+      edge: "right",
       to: "boss",
-      needUp: true,
+      alongMin: 360,
+      alongMax: 540,
       arrivalSpawn: { x: 160, surfaceY: 640 },
+      label: "→ BOSS",
     },
   ],
   enemies: [
@@ -200,8 +186,8 @@ export const STAGE_BOSS: StageDef = {
   id: "boss",
   title: "BOSS 房｜傳送點",
   bg: "#3a1818",
-  width: 1400,
-  height: 720,
+  playFrame: { x: 0, y: 0, width: 1400, height: 720 },
+  bounds: { x: 0, y: 0, width: 1400, height: 720 },
   respawnMs: 0,
   playerSpawn: { x: 160, surfaceY: 640 },
   platforms: [
@@ -209,27 +195,23 @@ export const STAGE_BOSS: StageDef = {
     { id: "boss-pad-l", x: 420, surfaceY: 520, width: 160, thickness: 18, color: 0x8b919a },
     { id: "boss-pad-r", x: 980, surfaceY: 520, width: 160, thickness: 18, color: 0x8b919a },
   ],
-  exits: [
+  edgeExits: [
     {
-      id: "boss-to-c",
-      x: 120,
-      y: 560,
-      width: 80,
-      height: 120,
-      label: "← 返回 C",
+      id: "boss-left-to-c",
+      edge: "left",
       to: "C",
-      needUp: true,
+      alongMin: 500,
+      alongMax: 720,
       arrivalSpawn: { x: 820, surfaceY: 460 },
+      label: "← C",
     },
     {
-      id: "boss-leave",
-      x: 1200,
-      y: 560,
-      width: 90,
-      height: 120,
-      label: "離開關卡",
+      id: "boss-right-settle",
+      edge: "right",
       to: "settle",
-      needUp: true,
+      alongMin: 500,
+      alongMax: 720,
+      label: "離開",
     },
   ],
   enemies: [],
@@ -244,8 +226,4 @@ export const STAGES: Record<StageId, StageDef> = {
 
 export function stageById(id: StageId): StageDef {
   return STAGES[id];
-}
-
-export function stageBounds(stage: StageDef): StageBounds {
-  return stage.bounds ?? { x: 0, y: 0, width: stage.width, height: stage.height };
 }

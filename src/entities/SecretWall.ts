@@ -28,6 +28,7 @@ export class SecretWall {
     def: SecretWallDef,
     platforms: Phaser.Physics.Arcade.StaticGroup,
     surfaces: { block: Phaser.GameObjects.Rectangle; droppable: boolean }[],
+    private readonly onBreak?: () => void,
   ) {
     this.def = def;
 
@@ -94,6 +95,7 @@ export class SecretWall {
     if (this.body.body) {
       this.scene.physics.world.disable(this.body);
     }
+    this.onBreak?.();
   }
 
   private drawCracks(): void {

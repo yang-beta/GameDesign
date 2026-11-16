@@ -23,8 +23,8 @@ export interface ChestDef {
 }
 
 /**
- * Side-hit secret leading into an off-screen annex (same scene, camera follows).
- * approachSide: 1 = punch facing right into the wall; -1 = facing left.
+ * Side-hit secret. For A, path climbs ABOVE playFrame.y (=0) into the annex.
+ * approachSide: 1 = punch facing right; -1 = facing left.
  */
 export interface SecretWallDef {
   id: string;
@@ -37,8 +37,12 @@ export interface SecretWallDef {
   approachSide: 1 | -1;
   alcove: { x: number; y: number; width: number; height: number; color: number };
   roomFloor: PlatformDef;
-  /** Extra climb/corridor platforms revealed with the annex (same scene). */
   pathPlatforms: PlatformDef[];
+  /**
+   * Opening punched through the play-frame border after the wall breaks
+   * (removes the matching border blocker segment).
+   */
+  borderGate?: { edge: "top" | "left" | "right" | "bottom"; alongMin: number; alongMax: number };
   chest: ChestDef;
 }
 
@@ -55,7 +59,6 @@ export interface MovingPlatformDef {
 
 export const PLAYER_DISPLAY_NAME = "主角1（暫名）";
 
-/** Toxic patches — rooms A and B only. */
 export const STAGE_HAZARDS: Partial<Record<StageId, HazardDef[]>> = {
   A: [
     {
@@ -82,39 +85,43 @@ export const STAGE_HAZARDS: Partial<Record<StageId, HazardDef[]>> = {
 };
 
 /**
- * Off-viewport annexes (still same Phaser scene — walk/climb in, camera follows).
- * A: above the main room · B: left of the shaft · C: right of the antechamber
+ * A: annex ABOVE play-frame top (y < 0). Contiguous shaft from a-high.
+ * B: annex LEFT of play-frame (x < 0).
+ * C: annex LEFT of play-frame (x < 0).
  */
 export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   A: {
     id: "a-secret",
-    // Break right face of a-high → shaft climbs above y=0 into the annex.
-    x: 1360,
+    // On a-high, punch RIGHT into this face → climb shaft past top border.
+    x: 1370,
     y: 600,
-    width: 36,
-    height: 100,
+    width: 40,
+    height: 110,
     hitsRequired: SECRET_HITS_REQUIRED,
-    blendColor: 0x243044,
+    blendColor: 0x2a384c,
     approachSide: 1,
-    alcove: { x: 1480, y: -260, width: 280, height: 200, color: 0x101820 },
+    alcove: { x: 1370, y: -250, width: 320, height: 220, color: 0x0e1520 },
     roomFloor: {
       id: "a-secret-floor",
-      x: 1480,
-      surfaceY: -160,
-      width: 280,
+      x: 1370,
+      surfaceY: -140,
+      width: 300,
       thickness: 20,
       color: 0x1c2838,
     },
+    // Tight ladder so the climb is walkable from a-high without a dead gap.
     pathPlatforms: [
-      { id: "a-shaft-1", x: 1480, surfaceY: 560, width: 140, thickness: 16, color: 0x2a3548 },
-      { id: "a-shaft-2", x: 1480, surfaceY: 420, width: 140, thickness: 16, color: 0x2a3548 },
-      { id: "a-shaft-3", x: 1480, surfaceY: 280, width: 140, thickness: 16, color: 0x2a3548 },
-      { id: "a-shaft-4", x: 1480, surfaceY: 140, width: 140, thickness: 16, color: 0x2a3548 },
-      { id: "a-shaft-5", x: 1480, surfaceY: 0, width: 160, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-0", x: 1370, surfaceY: 660, width: 120, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-1", x: 1370, surfaceY: 520, width: 120, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-2", x: 1370, surfaceY: 380, width: 120, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-3", x: 1370, surfaceY: 240, width: 120, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-4", x: 1370, surfaceY: 100, width: 140, thickness: 16, color: 0x2a3548 },
+      { id: "a-shaft-5", x: 1370, surfaceY: -20, width: 160, thickness: 16, color: 0x2a3548 },
     ],
+    borderGate: { edge: "top", alongMin: 1280, alongMax: 1460 },
     chest: {
-      x: 1520,
-      surfaceY: -160,
+      x: 1400,
+      surfaceY: -140,
       itemId: "item-1",
       itemLabel: "物品1",
       itemColor: 0xffc857,
@@ -122,7 +129,6 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   },
   B: {
     id: "b-secret",
-    // Stand on left doorway pad, punch LEFT → annex outside the shaft (x < 0).
     x: 140,
     y: 1040,
     width: 34,
@@ -130,10 +136,10 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
     hitsRequired: SECRET_HITS_REQUIRED,
     blendColor: 0x1a3022,
     approachSide: -1,
-    alcove: { x: -180, y: 1040, width: 240, height: 160, color: 0x0c1610 },
+    alcove: { x: -160, y: 1040, width: 240, height: 160, color: 0x0c1610 },
     roomFloor: {
       id: "b-secret-floor",
-      x: -180,
+      x: -160,
       surfaceY: 1100,
       width: 240,
       thickness: 18,
@@ -142,8 +148,9 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
     pathPlatforms: [
       { id: "b-secret-step", x: 40, surfaceY: 1100, width: 100, thickness: 16, color: 0x1f3a28 },
     ],
+    borderGate: { edge: "left", alongMin: 980, alongMax: 1160 },
     chest: {
-      x: -220,
+      x: -200,
       surfaceY: 1100,
       itemId: "item-2",
       itemLabel: "物品2",
@@ -152,7 +159,6 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
   },
   C: {
     id: "c-secret",
-    // From left of antechamber, punch LEFT → annex outside (x < 0); keeps boss exit free.
     x: 200,
     y: 400,
     width: 32,
@@ -172,6 +178,7 @@ export const STAGE_SECRETS: Partial<Record<StageId, SecretWallDef>> = {
     pathPlatforms: [
       { id: "c-secret-bridge", x: 40, surfaceY: 460, width: 80, thickness: 14, color: 0x2a1e38 },
     ],
+    borderGate: { edge: "left", alongMin: 360, alongMax: 520 },
     chest: {
       x: -180,
       surfaceY: 460,
