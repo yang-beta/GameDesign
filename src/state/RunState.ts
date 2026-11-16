@@ -3,14 +3,17 @@ export const PLAYER_MAX_HP = 50;
 export interface RunSnapshot {
   hp: number;
   stageClearCount: number;
+  items: string[];
 }
 
 let hp = PLAYER_MAX_HP;
 let stageClearCount = 0;
+let items: string[] = [];
 
 export function resetRun(): void {
   hp = PLAYER_MAX_HP;
   stageClearCount = 0;
+  items = [];
 }
 
 export function getHp(): number {
@@ -35,6 +38,16 @@ export function getStageClearCount(): number {
   return stageClearCount;
 }
 
+export function collectItem(label: string): void {
+  if (!items.includes(label)) {
+    items = [...items, label];
+  }
+}
+
+export function getItems(): readonly string[] {
+  return items;
+}
+
 export function snapshot(): RunSnapshot {
-  return { hp, stageClearCount };
+  return { hp, stageClearCount, items: [...items] };
 }
