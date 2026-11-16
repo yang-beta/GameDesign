@@ -60,13 +60,14 @@ export const STAGE_A: StageDef = {
   height: 900,
   respawnMs: 8000,
   playerSpawn: { x: 160, surfaceY: 840 },
+  // Stair rises ~60–70px so a short jump (even with early cut) still lands.
   platforms: [
     floor(2800, 840, 0x4a5a72),
-    { id: "a-low", x: 520, surfaceY: 740, width: 200, thickness: 22, color: PLAT },
-    { id: "a-mid", x: 900, surfaceY: 620, width: 180, thickness: 22, color: PLAT },
-    { id: "a-high", x: 1240, surfaceY: 500, width: 160, thickness: 22, color: PLAT },
-    { id: "a-drop", x: 1600, surfaceY: 700, width: 260, thickness: 22, color: PLAT },
-    { id: "a-bridge", x: 2100, surfaceY: 760, width: 320, thickness: 22, color: PLAT },
+    { id: "a-low", x: 520, surfaceY: 780, width: 220, thickness: 22, color: PLAT },
+    { id: "a-mid", x: 900, surfaceY: 720, width: 200, thickness: 22, color: PLAT },
+    { id: "a-high", x: 1240, surfaceY: 660, width: 180, thickness: 22, color: PLAT },
+    { id: "a-drop", x: 1600, surfaceY: 760, width: 280, thickness: 22, color: PLAT },
+    { id: "a-bridge", x: 2100, surfaceY: 780, width: 320, thickness: 22, color: PLAT },
     { id: "a-gate", x: 2550, surfaceY: 840, width: 200, thickness: 22, color: 0x6d7f9a },
   ],
   exits: [
@@ -83,8 +84,8 @@ export const STAGE_A: StageDef = {
   ],
   enemies: [
     { id: "a-patrol-1", kind: "patrol", x: 640, surfaceY: 840, patrol: 110 },
-    { id: "a-patrol-2", kind: "patrol", x: 1600, surfaceY: 700, patrol: 80 },
-    { id: "a-shooter-1", kind: "shooter", x: 2100, surfaceY: 760, patrol: 90 },
+    { id: "a-patrol-2", kind: "patrol", x: 1600, surfaceY: 760, patrol: 80 },
+    { id: "a-shooter-1", kind: "shooter", x: 2100, surfaceY: 780, patrol: 90 },
   ],
 };
 

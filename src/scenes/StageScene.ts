@@ -42,6 +42,7 @@ export class StageScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private jumpKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
+  private kickKey!: Phaser.Input.Keyboard.Key;
   private hitKey!: Phaser.Input.Keyboard.Key;
   private debugKey!: Phaser.Input.Keyboard.Key;
   private upKey!: Phaser.Input.Keyboard.Key;
@@ -197,12 +198,14 @@ export class StageScene extends Phaser.Scene {
     this.cursors = keyboard.createCursorKeys();
     this.jumpKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.attackKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+    this.kickKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     this.hitKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     this.upKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     keyboard.addCapture([
       Phaser.Input.Keyboard.KeyCodes.SPACE,
       Phaser.Input.Keyboard.KeyCodes.Z,
+      Phaser.Input.Keyboard.KeyCodes.C,
       Phaser.Input.Keyboard.KeyCodes.X,
       Phaser.Input.Keyboard.KeyCodes.H,
       Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -245,7 +248,7 @@ export class StageScene extends Phaser.Scene {
       .setDepth(21);
 
     this.add
-      .text(24, 94, "方向鍵移動　空白跳　Z 攻擊　↑ 在傳送門進入　H 判定框", {
+      .text(24, 94, "方向鍵移動　空白跳　Z 拳　C 踢　↑ 傳送門　H 判定框", {
         fontFamily: font,
         fontSize: "13px",
         color: "#c5cad3",
@@ -525,6 +528,7 @@ export class StageScene extends Phaser.Scene {
       jumpPressed: Phaser.Input.Keyboard.JustDown(this.jumpKey),
       jumpReleased: Phaser.Input.Keyboard.JustUp(this.jumpKey),
       attackPressed: Phaser.Input.Keyboard.JustDown(this.attackKey),
+      kickPressed: Phaser.Input.Keyboard.JustDown(this.kickKey),
       hitPressed: Phaser.Input.Keyboard.JustDown(this.hitKey),
     };
   }

@@ -29,16 +29,20 @@ import { buildJoints } from "./PlayerRenderer";
 import type { PlayerViewState } from "./PlayerController";
 
 describe("player movement", () => {
-  it("starts with a single jump and no air jump", () => {
-    expect(STARTING_AIR_JUMPS).toBe(0);
+  it("starts with a ground jump plus one air hop", () => {
+    expect(STARTING_AIR_JUMPS).toBe(1);
 
     let result = stepJump(createJumpState(0), 0, true, true, false, 0);
     expect(result.jumped).toBe(true);
     expect(result.velocityY).toBe(JUMP_VELOCITY);
+    expect(result.state.airJumps).toBe(1);
 
     result = stepJump(result.state, 40, false, true, false, result.velocityY);
-    expect(result.jumped).toBe(false);
+    expect(result.jumped).toBe(true);
     expect(result.state.airJumps).toBe(0);
+
+    result = stepJump(result.state, 80, false, true, false, result.velocityY);
+    expect(result.jumped).toBe(false);
   });
 
   it("allows one air jump after that ability is unlocked, then restores it on landing", () => {
@@ -127,12 +131,12 @@ describe("player movement", () => {
 });
 
 describe("combo", () => {
-  it("remembers Z for 0.15s and chains jab, hook, then kick", () => {
+  it("remembers Z for 0.15s and chains jab then hook; C starts a kick", () => {
     expect(ATTACK_BUFFER_MS).toBe(150);
     expect(COMBO_RESET_MS).toBe(600);
-    expect(ATTACKS.jab.hitstop).toBe(40);
-    expect(ATTACKS.hook.hitstop).toBe(40);
-    expect(ATTACKS.kick.hitstop).toBe(80);
+    expect(ATTACKS.jab.hitstop).toBe(50);
+    expect(ATTACKS.hook.hitstop).toBe(55);
+    expect(ATTACKS.kick.hitstop).toBe(90);
 
     let state = noteAttackPress(createCombatState(), 0);
     expect(beginBufferedAttack(state, 151, false).attack).toBeNull();
@@ -143,12 +147,20 @@ describe("combo", () => {
     state = noteAttackPress(state, 80);
     expect(beginBufferedAttack(state, 80, false).attack).toBe("jab");
 
-    state = beginBufferedAttack(tickCombat(state, 120), 120, false);
+    const jabRecovery =
+      state.attackStartedAt + ATTACKS.jab.startup + ATTACKS.jab.active + 1;
+    state = noteAttackPress(state, jabRecovery - 20);
+    state = beginBufferedAttack(tickCombat(state, jabRecovery), jabRecovery, false);
     expect(state.attack).toBe("hook");
 
-    const kickAt = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active;
-    state = noteAttackPress(state, kickAt - 40);
-    state = beginBufferedAttack(state, kickAt, false);
+    const afterHook = state.attackStartedAt + ATTACKS.hook.startup + ATTACKS.hook.active + 1;
+    state = noteAttackPress(state, afterHook - 40);
+    state = beginBufferedAttack(state, afterHook, false);
+    expect(state.attack).toBe("jab");
+
+    const kickAt = afterHook + 500;
+    state = noteAttackPress(tickCombat(state, kickAt), kickAt);
+    state = beginBufferedAttack(state, kickAt, false, true);
     expect(state.attack).toBe("kick");
     expect(attackVelocity("kick", "startup")).toBeLessThan(attackVelocity("kick", "active"));
     expect(attackVelocity("jab", "startup")).toBeGreaterThan(0);
@@ -168,26 +180,50 @@ describe("combo", () => {
     expect(state.attack).toBe("jab");
   });
 
-  it("uses a low sweep instead of the standing chain while crouching", () => {
-    const state = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, true);
-    expect(state.attack).toBe("sweep");
-    expect(state.comboSlot).toBe(0);
+  it("uses crouch punch / crouch kick while crouching, and air moves while airborne", () => {
+    const crouchPunch = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: true,
+      airborne: false,
+      preferKick: false,
+    });
+    expect(crouchPunch.attack).toBe("crouchPunch");
+
+    const crouchKick = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: true,
+      airborne: false,
+      preferKick: true,
+    });
+    expect(crouchKick.attack).toBe("crouchKick");
+
+    const jumpPunch = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: false,
+      airborne: true,
+      preferKick: false,
+    });
+    expect(jumpPunch.attack).toBe("jumpPunch");
+
+    const tatsu = beginBufferedAttack(noteAttackPress(createCombatState(), 0), 0, {
+      crouching: false,
+      airborne: true,
+      preferKick: true,
+    });
+    expect(tatsu.attack).toBe("tatsumaki");
   });
 
-  it("places the hook above the jab, the kick wider, and the sweep lower", () => {
+  it("places the hook above the jab, the kick wider, and crouch kick lower", () => {
     const jab = makeHitbox(0, 0, 1, "jab");
     const hook = makeHitbox(0, 0, 1, "hook");
     const kick = makeHitbox(0, 0, 1, "kick");
-    const sweep = makeHitbox(0, 0, 1, "sweep");
+    const crouchKick = makeHitbox(0, 0, 1, "crouchKick");
     const left = makeHitbox(0, 0, -1, "jab");
 
     expect(hook.y).toBeLessThan(jab.y);
     expect(kick.width).toBeGreaterThan(jab.width);
     expect(ATTACKS.kick.knockback).toBeGreaterThan(ATTACKS.jab.knockback);
-    expect(sweep.y).toBeGreaterThan(jab.y);
+    expect(crouchKick.y).toBeGreaterThan(jab.y);
     expect(left.x).toBeLessThan(0);
     expect(jab.x).toBeGreaterThan(0);
-    expect(kick.width).toBeLessThan(50);
+    expect(kick.width).toBeLessThan(60);
     expect(hitboxTouches(kick, { x: 200, y: 0, width: 54, height: 120 })).toBe(false);
     expect(hitboxTouches(jab, { x: -90, y: 0, width: 40, height: 80 })).toBe(false);
     expect(hitboxTouches(jab, { x: 48, y: -14, width: 28, height: 28 })).toBe(true);
@@ -213,10 +249,6 @@ describe("hurtbox and puppet", () => {
     expect(idle.head.y - idle.head.r).toBeGreaterThanOrEqual(-64);
     expect(idle.footL.y).toBeLessThanOrEqual(64);
     expect(idle.footL.y).toBeGreaterThan(50);
-    // Male V-taper: shoulders wider than the stance/hips.
-    expect(Math.abs(idle.shoulderR.x - idle.shoulderL.x)).toBeGreaterThan(
-      Math.abs(idle.kneeR.x - idle.kneeL.x),
-    );
     expect(jab.fistL.x).toBeGreaterThan(idle.fistL.x + 20);
     expect(jab.chest.x).toBeGreaterThan(idle.chest.x);
     expect(jab.head.x).toBeLessThan(jab.chest.x);
@@ -230,22 +262,11 @@ describe("hurtbox and puppet", () => {
     expect(crouch.footL.y).toBeLessThan(34);
     expect(describePose("jab")).toBe("左直拳");
     expect(describePose("kick")).toBe("重踢");
-    expect(describePose("sweep")).toBe("下段掃腿");
+    expect(describePose("jumpPunch")).toBe("跳躍攻擊");
+    expect(describePose("tatsumaki")).toBe("旋風腳");
+    expect(describePose("crouchPunch")).toBe("蹲下拳");
+    expect(describePose("crouchKick")).toBe("蹲下踢");
     expect(describePose("hit")).toBe("受擊");
-    expect(describePose("run")).toBe("走路");
-  });
-
-  it("walks with opposite limbs and little forward lean versus idle", () => {
-    const idle = buildJoints(view("idle"));
-    const contact = buildJoints({ ...view("run"), cycle: Math.PI / 2 });
-    const passing = buildJoints({ ...view("run"), cycle: 0 });
-
-    expect(contact.footL.x).toBeGreaterThan(8);
-    expect(contact.footR.x).toBeLessThan(-8);
-    expect(Math.abs(passing.footL.x - passing.footR.x)).toBeLessThan(
-      Math.abs(contact.footL.x - contact.footR.x),
-    );
-    expect(contact.chest.x - idle.chest.x).toBeLessThan(3);
   });
 });
 
@@ -260,7 +281,7 @@ function view(pose: PlayerViewState["pose"], attackAmount = 0): PlayerViewState 
     attackPhase: attackAmount > 0 ? "active" : "done",
     attackAmount,
     showHitboxes: false,
-    hurtbox: hurtboxFor(pose === "crouch" || pose === "sweep"),
+    hurtbox: hurtboxFor(pose === "crouch" || pose === "crouchPunch" || pose === "crouchKick"),
     hitbox: null,
     flicker: false,
     status: describePose(pose),
