@@ -4,7 +4,7 @@ export const HURTBOX_WIDTH = 46;
 export const STAND_HEIGHT = 128;
 export const CROUCH_HEIGHT = 72;
 export const RUN_SPEED = 250;
-export const CROUCH_SPEED = 90;
+export const CROUCH_SPEED = 140;
 export const GRAVITY_Y = 1500;
 export const JUMP_VELOCITY = -640;
 export const JUMP_CUT_MULTIPLIER = 0.45;
@@ -710,9 +710,9 @@ export class PlayerController {
       this.facing = 1;
     }
 
-    // Keep crouch while ↓ is held on a surface — including mid crouch-attack —
-    // so combos don't pop the stance back to stand, and crouch-walk stays available.
-    const wantCrouch = input.down && anchored && !jumped && !inHitstun;
+    // Crouch whenever ↓ is held while supported (anchor optional) so crouch-walk works.
+    const wantCrouch =
+      (intent.holdCrouch || (input.down && supported && !jumped && !inHitstun)) && !this.dropActive;
     const airborne = !supported && !this.dropActive;
     const beforeAttack = this.combat.attack;
     this.combat = beginBufferedAttack(this.combat, time, {
@@ -727,11 +727,15 @@ export class PlayerController {
     }
     this.crouching = isCrouchAttack(this.combat.attack) || wantCrouch;
     this.applyStance(this.crouching);
-    const plantCrouch =
-      this.crouching && this.crouchAnchorTop !== null && !isAirAttack(this.combat.attack) && !airborne;
-    if (plantCrouch) {
+    if (this.crouching && !airborne && !isAirAttack(this.combat.attack)) {
       body.setAllowGravity(false);
-      this.plantFeet(this.crouchAnchorTop!);
+      body.setVelocityY(0);
+      if (this.crouchAnchorTop !== null) {
+        // Snap Y only — keep X free so crouch-walk is not cancelled by replant.
+        const height = this.bodyObject.height;
+        this.bodyObject.y = this.crouchAnchorTop - height / 2;
+        this.commitBodyPosition();
+      }
     } else {
       body.setAllowGravity(true);
     }
@@ -744,10 +748,11 @@ export class PlayerController {
     const timing = this.combat.attack
       ? attackTiming(this.combat.attack, time - this.combat.attackStartedAt)
       : null;
-    if (this.combat.attack && timing && timing.phase !== "done" && timing.phase !== "recovery") {
-      body.setVelocityX(this.facing * attackVelocity(this.combat.attack, timing.phase));
-      // Tatsumaki: slight float during active spin
-      if (this.combat.attack === "tatsumaki" && timing.phase === "active" && body.velocity.y > 40) {
+    const attackLocksX =
+      this.combat.attack && timing && timing.phase !== "done" && timing.phase !== "recovery";
+    if (attackLocksX) {
+      body.setVelocityX(this.facing * attackVelocity(this.combat.attack!, timing!.phase));
+      if (this.combat.attack === "tatsumaki" && timing!.phase === "active" && body.velocity.y > 40) {
         body.setVelocityY(40);
       }
     } else if (input.left && !input.right) {
@@ -756,6 +761,15 @@ export class PlayerController {
       body.setVelocityX(this.crouching ? CROUCH_SPEED : RUN_SPEED);
     } else if (!(this.combat.attack === "tatsumaki" && timing && timing.phase === "recovery")) {
       body.setVelocityX(0);
+    }
+
+    // Re-assert crouch walk after attack step so recovery frames still slide.
+    if (this.crouching && !attackLocksX) {
+      if (input.left && !input.right) {
+        body.setVelocityX(-CROUCH_SPEED);
+      } else if (input.right && !input.left) {
+        body.setVelocityX(CROUCH_SPEED);
+      }
     }
 
     this.publish(time);

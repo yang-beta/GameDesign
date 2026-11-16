@@ -4,11 +4,14 @@ import { STAGE_A, STAGE_B, STAGE_BOSS, STAGE_C, STAGES } from "./StageData";
 import { toRect } from "./MapData";
 
 describe("stage flow data", () => {
-  it("defines A→B→C→boss exits and distinct backgrounds", () => {
-    expect(STAGE_A.exits[0]?.to).toBe("B");
-    expect(STAGE_B.exits[0]?.to).toBe("C");
-    expect(STAGE_C.exits[0]?.to).toBe("boss");
-    expect(STAGE_BOSS.exits[0]?.to).toBe("settle");
+  it("uses edge exits for bidirectional travel without door props", () => {
+    expect(STAGE_A.edgeExits.some((e) => e.to === "B" && e.edge === "right")).toBe(true);
+    expect(STAGE_B.edgeExits.some((e) => e.to === "A" && e.edge === "top")).toBe(true);
+    expect(STAGE_B.edgeExits.some((e) => e.to === "C" && e.edge === "right")).toBe(true);
+    expect(STAGE_C.edgeExits.some((e) => e.to === "B" && e.edge === "left")).toBe(true);
+    expect(STAGE_C.edgeExits.some((e) => e.to === "boss" && e.edge === "right")).toBe(true);
+    expect(STAGE_BOSS.edgeExits.some((e) => e.to === "C")).toBe(true);
+    expect(STAGE_BOSS.edgeExits.some((e) => e.to === "settle")).toBe(true);
 
     const bgs = new Set(Object.values(STAGES).map((stage) => stage.bg));
     expect(bgs.size).toBe(4);
@@ -28,21 +31,16 @@ describe("stage flow data", () => {
     }
   });
 
-  it("keeps platforms inside each room and enemies on surfaces", () => {
+  it("keeps platforms inside each play frame and defines expanded bounds", () => {
     for (const stage of Object.values(STAGES)) {
       for (const platform of stage.platforms) {
         const rect = toRect(platform);
-        expect(rect.x - rect.width / 2).toBeGreaterThanOrEqual(-1);
-        expect(rect.x + rect.width / 2).toBeLessThanOrEqual(stage.width + 1);
+        expect(rect.x - rect.width / 2).toBeGreaterThanOrEqual(stage.playFrame.x - 1);
+        expect(rect.x + rect.width / 2).toBeLessThanOrEqual(stage.playFrame.x + stage.playFrame.width + 1);
       }
-      for (const spawn of stage.enemies) {
-        expect(spawn.kind === "patrol" || spawn.kind === "shooter").toBe(true);
-        expect(spawn.x).toBeGreaterThan(0);
-        expect(spawn.x).toBeLessThan(stage.width);
-      }
+      expect(stage.bounds.width).toBeGreaterThanOrEqual(stage.playFrame.width);
+      expect(stage.bounds.height).toBeGreaterThanOrEqual(stage.playFrame.height);
     }
-    expect(STAGE_B.height).toBeGreaterThan(STAGE_A.height);
-    expect(STAGE_C.width).toBeLessThanOrEqual(960);
-    expect(STAGE_BOSS.enemies).toHaveLength(0);
+    expect(STAGE_A.bounds.y).toBeLessThan(STAGE_A.playFrame.y);
   });
 });

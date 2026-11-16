@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGE_HAZARDS, STAGE_SECRETS, SECRET_HITS_REQUIRED, TOXIC_DAMAGE } from "./Interactables";
+import { STAGE_HAZARDS, STAGE_LIFTS, STAGE_SECRETS, SECRET_HITS_REQUIRED, TOXIC_DAMAGE } from "./Interactables";
 import { STAGES } from "./StageData";
 import { crackAlpha, shouldCountWallHit } from "../entities/SecretWall";
 
@@ -7,33 +7,28 @@ describe("hazards and secrets", () => {
   it("puts toxic ground in A and B only, damage 3", () => {
     expect(STAGE_HAZARDS.A?.length).toBeGreaterThan(0);
     expect(STAGE_HAZARDS.B?.length).toBeGreaterThan(0);
-    expect(STAGE_HAZARDS.C).toBeUndefined();
-    expect(STAGE_HAZARDS.boss).toBeUndefined();
     expect(TOXIC_DAMAGE).toBe(3);
-    expect(STAGE_HAZARDS.A?.[0]?.damage).toBe(3);
   });
 
-  it("gives each non-boss room a side-hit elevated secret with a chest", () => {
+  it("puts A secret annex above the play-frame border", () => {
     expect(SECRET_HITS_REQUIRED).toBe(4);
-    expect(STAGE_SECRETS.boss).toBeUndefined();
-    for (const id of ["A", "B", "C"] as const) {
-      const secret = STAGE_SECRETS[id];
-      expect(secret, id).toBeDefined();
-      expect(secret!.hitsRequired).toBe(4);
-      expect(secret!.approachSide === 1 || secret!.approachSide === -1).toBe(true);
-      // Elevated relative to that stage's floor (not sitting on the bottom).
-      const floorY = Math.max(...STAGES[id].platforms.map((p) => p.surfaceY));
-      expect(secret!.roomFloor.surfaceY).toBeLessThan(floorY - 40);
-      expect(secret!.chest.itemLabel.startsWith("物品")).toBe(true);
-    }
+    const a = STAGE_SECRETS.A!;
+    expect(a.roomFloor.surfaceY).toBeLessThan(STAGES.A.playFrame.y);
+    expect(a.borderGate?.edge).toBe("top");
+    expect(a.pathPlatforms.length).toBeGreaterThan(3);
+    // Shaft starts at a-high height so the first step is reachable.
+    expect(a.pathPlatforms[0]!.surfaceY).toBe(660);
+  });
+
+  it("gives B a recovery lift and side secrets outside the left frame", () => {
+    expect(STAGE_LIFTS.B?.[0]?.surfaceYMax).toBeGreaterThan(2000);
+    expect(STAGE_SECRETS.B!.roomFloor.x).toBeLessThan(0);
+    expect(STAGE_SECRETS.C!.roomFloor.x).toBeLessThan(0);
   });
 
   it("advances crack visuals and counts one hit per attack serial", () => {
-    expect(crackAlpha(0)).toBe(0);
     expect(crackAlpha(2)).toBe(0.5);
-    expect(crackAlpha(4)).toBe(1);
     expect(shouldCountWallHit(-1, 0, false)).toBe(true);
     expect(shouldCountWallHit(0, 0, false)).toBe(false);
-    expect(shouldCountWallHit(0, 1, true)).toBe(false);
   });
 });

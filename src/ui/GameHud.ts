@@ -91,7 +91,7 @@ export class GameHud {
       .text(
         scene.scale.width / 2,
         scene.scale.height - 18,
-        "←→ 移動　空白 跳　↓蹲　Z 拳　C 踢　↑ 傳送門　（測試提示，之後移除）",
+        "←→ 移動　空白 跳　↓蹲走　Z 拳　C 踢　走到盡頭切場／B頂跳回A　（測試提示）",
         {
           fontFamily: FONT,
           fontSize: "13px",
